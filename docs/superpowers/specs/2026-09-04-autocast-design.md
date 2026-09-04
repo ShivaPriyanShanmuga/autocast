@@ -168,18 +168,47 @@ retiming. `Page.startScreencast` returns JPEG frames each carrying a real
 timestamp: variable-rate data we can resample, idle-compress, and align to
 narration. Choosing `recordVideo` would forfeit all of section 7.
 
-**Capture happens at `deviceScaleFactor: 2` and is composited down.** The
-browser is captured at 2560x1440 and downscaled onto the 720p canvas. This is
-not a quality nicety — it is what makes zoom (section 7.2) lossless up to 2x.
-Zooming into a 1x raster produces upscaled mush; zooming into a 2x capture
-consumes real pixels. **This decision cannot be deferred:** building phase 2 at
-1x and adding polish later would require re-recording every demo authored in
-between. Cost is 4x frame data on disk during pass 1 plus downscale CPU, both
-bounded because frames stream to disk rather than memory.
+**Frame resolution equals the CSS viewport. `deviceScaleFactor` does nothing
+here.** Verified by spike (see 4.5.1): `Page.startScreencast` returns frames at
+the CSS viewport size regardless of `deviceScaleFactor` 1, 2 or 3, and ignores
+`maxWidth`/`maxHeight`. Only `page.screenshot()` honours the scale factor, and
+it is far too slow to drive at frame rate. So the browser viewport is set to
+the output canvas size and captured 1:1.
 
-The terminal is exempt — it is rendered offline at whatever resolution the
-compositor asks for, so terminal zoom is always pixel-exact. Another dividend
-of the log-replay half of section 4.2.
+**Zoom is performed in the browser, not the compositor.** `focus:` drives CDP
+`Emulation.setPageScaleFactor`, which makes the browser re-rasterise at the
+zoomed scale, so zoomed text is natively sharp at any magnification rather than
+an upscaled crop. Pinch-zoom emulation does not reflow layout, so the page
+under test is not disturbed.
+
+This is strictly better than the "capture at 2x, crop to zoom" approach it
+replaces, which was bounded at 2x and soft beyond it. The cost is that browser
+zoom is baked in at capture time and cannot be re-timed offline, unlike the
+terminal's. Animating a zoom means stepping the scale factor during capture,
+which yields natively rendered motion.
+
+The terminal is exempt from all of this — it is rendered offline at whatever
+resolution the compositor asks for, so terminal zoom is always pixel-exact.
+Another dividend of the log-replay half of section 4.2.
+
+### 4.5.1 Verified by spike, 2026-09-04 (Playwright 1.62.1, Chromium)
+
+- Screencast frame size follows the CSS viewport only. `deviceScaleFactor` 1/2/3
+  and `maxWidth`/`maxHeight` all yielded 640x400 for a 640x400 viewport.
+  `page.screenshot()` on the same page returned 1280x800 at `deviceScaleFactor: 2`.
+- A larger viewport does yield more pixels (1280x800 viewport gave 1280x800
+  frames), so supersampling is available if a demo wants it — at the cost of
+  laying the page out as a bigger window.
+- **The screencast is change-driven, not clock-driven.** A page doing nothing
+  produced **1 frame in 3 seconds**; an interactive burst produced ~5.7 fps with
+  inter-frame gaps from 17 ms to 138 ms. The resampler must hold the last frame
+  across gaps — without it, most of a demo would have no frames at all.
+- Frame timestamps are **unix seconds as a float** (e.g. `1788551698.609511`),
+  not milliseconds.
+- `boundingBox()` returns CSS pixels; multiply by any active page scale to get
+  frame pixels.
+- `page.on('console')` and `page.on('requestfailed')` capture what the
+  `no_console_errors` and `no_failed_requests` assertions need.
 
 ### 4.6 Sessions are not scenes
 
@@ -377,8 +406,10 @@ re-renders without re-running anything.
 - **Cursor** — headless has no cursor, so we draw one. Minimum-jerk eased paths
   between targets with slight overshoot-and-settle; clicks get a ring pulse.
 - **Zoom** — `focus: <selector>` for explicit framing, and `style.zoom.auto`
-  for automatic zoom on click targets. **We frame better than a screen
-  recorder can.** Screen Studio and its peers infer intent from pixels: they
+  for automatic zoom on click targets. On the browser backend this is applied
+  in-browser via `Emulation.setPageScaleFactor` (section 4.5), so it is the one
+  effect here that is NOT compositor-side; on the terminal it is a pure
+  re-render. **We frame better than a screen recorder can.** Screen Studio and its peers infer intent from pixels: they
   see a click at (x, y) and guess a zoom factor. We know the semantic action
   and the element's exact bounding box from the DOM, so we frame to fit the
   element plus margin, and we know precisely when the interaction ends and the
@@ -600,5 +631,5 @@ will actually want to publish. Narration is additive on top of both, by design.
 | CDP screencast frame drops under load | Timestamps are authoritative, not frame counts; resampler interpolates by holding the last frame |
 | Compositor performance at 1080p | Frames stream to ffmpeg via stdin; no full-video buffering; encode is single-pass |
 | `node-pty` prebuild missing on an exotic platform | Preflight detects module load failure and prints build-from-source instructions |
-| 2x browser capture inflates pass-1 disk use 4x | Frames stream to disk as JPEG, never buffered in memory; intermediates live under `.autocast/` and are cleaned on success. Long demos get a documented disk-space note, and `deviceScaleFactor` is overridable for users who never zoom |
+| Sparse browser frames (a still page emits ~1 frame per 3s) | Timestamps are authoritative; the resampler holds the last frame across gaps. Verified in section 4.5.1 |
 | Motion blur at 4x compositing fps costs CPU | Applied only to camera-motion segments, not the whole timeline; disabled by default when `style:` is absent |
