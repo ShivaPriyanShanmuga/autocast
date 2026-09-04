@@ -48,10 +48,17 @@ describe('Phase 0 exit criteria', () => {
     }
   });
 
-  it('no capture dependency is present in this phase', () => {
+  it('carries no rendering or encoding dependency yet', () => {
+    // Phase 1a adds the PTY pair. Canvas, ffmpeg bindings and Playwright
+    // belong to later phases; their appearance here means scope crept.
     const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as {
       dependencies: Record<string, string>;
     };
-    expect(Object.keys(pkg.dependencies).sort()).toEqual(['yaml', 'zod']);
+    expect(Object.keys(pkg.dependencies).sort()).toEqual([
+      '@xterm/headless',
+      'node-pty',
+      'yaml',
+      'zod',
+    ]);
   });
 });

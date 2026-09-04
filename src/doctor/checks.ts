@@ -1,5 +1,8 @@
 import { access, constants } from 'node:fs/promises';
+import { createRequire } from 'node:module';
 import { probeFfmpeg } from './ffmpeg.js';
+
+const requireCjs = createRequire(import.meta.url);
 
 /**
  * 'skip' means we could not run the check, not that it passed or failed.
@@ -96,12 +99,45 @@ const cwdWritableCheck: Check = {
   },
 };
 
+const nodePtyCheck: Check = {
+  name: 'node-pty',
+  async run() {
+    try {
+      const version = (requireCjs('node-pty/package.json') as { version: string }).version;
+      requireCjs('node-pty'); // loading the native binding is the real test
+      return { name: 'node-pty', status: 'ok', detail: version };
+    } catch (error) {
+      return {
+        name: 'node-pty',
+        status: 'fail',
+        detail: `native module failed to load: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+        hint: [
+          '    node-pty ships prebuilt binaries for common platforms.',
+          '    If yours is not covered, it must be built from source:',
+          '    Windows:  install Visual Studio Build Tools (C++ workload)',
+          '    macOS:    xcode-select --install',
+          '    Linux:    sudo apt install build-essential python3',
+          '    Then:     npm rebuild node-pty',
+        ].join('\n'),
+      };
+    }
+  },
+};
+
 /**
- * Phase 0 registers only what Phase 0 needs. Phase 1 adds a node-pty
- * check and Phase 2 adds Playwright chromium — reporting a dependency
- * the installed feature set does not use would not be truthful.
+ * Each phase registers only what it needs. Phase 2 adds Playwright
+ * chromium — reporting a dependency the installed feature set does not
+ * use would not be truthful.
  */
-export const CHECKS: Check[] = [ffmpegCheck, x264Check, rubberbandCheck, cwdWritableCheck];
+export const CHECKS: Check[] = [
+  ffmpegCheck,
+  x264Check,
+  rubberbandCheck,
+  nodePtyCheck,
+  cwdWritableCheck,
+];
 
 export async function runChecks(checks: readonly Check[] = CHECKS): Promise<CheckResult[]> {
   return Promise.all(checks.map((c) => c.run()));
