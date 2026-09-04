@@ -42,7 +42,7 @@ export async function captureTerminalDemo(
     }
   }
 
-  const typingSpeedMs = toMs(script.defaults?.typing_speed, 45);
+  const typingSpeedMs = toMs(script.defaults?.typing_speed, 65);
   const settleMs = toMs(script.defaults?.settle, 400);
 
   // Insertion order is declaration order; teardown reverses it (spec 4.6).

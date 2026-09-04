@@ -3,7 +3,7 @@ output:
   path: docs/terminal-demo.mp4
 
 defaults:
-  typing_speed: 20ms
+  typing_speed: 65ms
   settle: 150ms
 
 sessions:
