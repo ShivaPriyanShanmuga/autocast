@@ -1,0 +1,4 @@
+autocast: 1
+scenes:
+  - id: boot
+   use: api

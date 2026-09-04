@@ -1,3 +1,5 @@
+import { validateCommand } from './validate-command.js';
+
 export interface CliIO {
   out(text: string): void;
   err(text: string): void;
@@ -35,6 +37,10 @@ export async function runCli(argv: string[], io: CliIO): Promise<number> {
     io.err('autocast: no command given\n');
     io.err(USAGE);
     return 2;
+  }
+
+  if (command === 'validate') {
+    return validateCommand(argv.slice(1), io);
   }
 
   io.err(`autocast: unknown command "${command}"\n`);
