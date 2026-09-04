@@ -38,6 +38,12 @@ export interface TerminalSession {
   write(data: string): void;
   text(): Promise<string>;
   waitFor(pattern: RegExp, timeoutMs: number): Promise<boolean>;
+  /**
+   * Poll until `predicate` accepts the rendered text. Needed for checks a
+   * RegExp cannot express reliably — notably anything that must survive
+   * the terminal wrapping a long line, which inserts a newline mid-token.
+   */
+  waitUntil(predicate: (text: string) => boolean, timeoutMs: number): Promise<boolean>;
   isAlive(): boolean;
   exitCode(): number | null;
   cast(): CastLog;
@@ -114,17 +120,21 @@ export async function openTerminalSession(
 
     text: readText,
 
-    async waitFor(pattern, timeoutMs) {
+    async waitUntil(predicate, timeoutMs) {
       const deadline = Date.now() + timeoutMs;
       while (Date.now() < deadline) {
-        if (pattern.test(await readText())) return true;
+        if (predicate(await readText())) return true;
         if (exited !== null) {
           // Give the final flush one more look before giving up.
-          return pattern.test(await readText());
+          return predicate(await readText());
         }
         await new Promise((r) => setTimeout(r, 50));
       }
       return false;
+    },
+
+    async waitFor(pattern, timeoutMs) {
+      return session.waitUntil((text) => pattern.test(text), timeoutMs);
     },
 
     isAlive() {
