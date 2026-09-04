@@ -1,7 +1,12 @@
 import { access, constants } from 'node:fs/promises';
 import { probeFfmpeg } from './ffmpeg.js';
 
-export type CheckStatus = 'ok' | 'warn' | 'fail';
+/**
+ * 'skip' means we could not run the check, not that it passed or failed.
+ * Reporting "librubberband: not available" when ffmpeg itself is absent
+ * would assert something we never actually established.
+ */
+export type CheckStatus = 'ok' | 'warn' | 'fail' | 'skip';
 
 export interface CheckResult {
   name: string;
@@ -34,47 +39,45 @@ const ffmpegCheck: Check = {
   },
 };
 
-const x264Check: Check = {
-  name: 'libx264',
-  async run() {
-    const info = await probeFfmpeg();
-    if (info === null) {
-      return {
-        name: 'libx264',
-        status: 'fail',
-        detail: 'ffmpeg not available',
-        hint: FFMPEG_INSTALL,
-      };
-    }
-    if (!info.libs.has('libx264')) {
-      return {
-        name: 'libx264',
-        status: 'fail',
-        detail: 'ffmpeg was built without libx264',
-        hint: '    autocast encodes H.264. Install a full ffmpeg build:\n' + FFMPEG_INSTALL,
-      };
-    }
-    return { name: 'libx264', status: 'ok', detail: 'enabled' };
-  },
-};
+/**
+ * A check that can only be answered once ffmpeg has been located. When it
+ * has not, the result is 'skip' with no remediation — fixing ffmpeg is the
+ * one action that unblocks all of these, and repeating its install block
+ * per dependent check is noise, not help.
+ */
+function ffmpegLibCheck(
+  name: string,
+  onMissing: (name: string) => CheckResult,
+): Check {
+  return {
+    name,
+    async run() {
+      const info = await probeFfmpeg();
+      if (info === null) {
+        return { name, status: 'skip', detail: 'cannot check — ffmpeg not found' };
+      }
+      if (!info.libs.has(name)) return onMissing(name);
+      return { name, status: 'ok', detail: 'enabled' };
+    },
+  };
+}
 
-const rubberbandCheck: Check = {
-  name: 'librubberband',
-  async run() {
-    const info = await probeFfmpeg();
-    if (info === null || !info.libs.has('librubberband')) {
-      return {
-        name: 'librubberband',
-        status: 'warn',
-        detail: 'not available',
-        hint:
-          '    Narration time-stretching will be unavailable (spec section 7.1, lever 3).\n' +
-          '    Silent demos are unaffected.',
-      };
-    }
-    return { name: 'librubberband', status: 'ok', detail: 'enabled' };
-  },
-};
+const x264Check = ffmpegLibCheck('libx264', (name) => ({
+  name,
+  status: 'fail',
+  detail: 'ffmpeg was built without libx264',
+  hint: '    autocast encodes H.264 and this ffmpeg cannot. Install a full build:\n' +
+    FFMPEG_INSTALL,
+}));
+
+const rubberbandCheck = ffmpegLibCheck('librubberband', (name) => ({
+  name,
+  status: 'warn',
+  detail: 'not enabled in this ffmpeg build',
+  hint:
+    '    Narration time-stretching will be unavailable (spec section 7.1, lever 3).\n' +
+    '    Silent demos are unaffected.',
+}));
 
 const cwdWritableCheck: Check = {
   name: 'cwd writable',

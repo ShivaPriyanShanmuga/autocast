@@ -1,7 +1,12 @@
 import { runChecks, type CheckResult } from '../doctor/checks.js';
 import type { CliIO } from './run.js';
 
-const MARK: Record<CheckResult['status'], string> = { ok: 'OK  ', warn: 'WARN', fail: 'FAIL' };
+const MARK: Record<CheckResult['status'], string> = {
+  ok: 'OK  ',
+  warn: 'WARN',
+  fail: 'FAIL',
+  skip: 'SKIP',
+};
 
 export function formatCheckResults(results: readonly CheckResult[]): string {
   const width = Math.max(...results.map((r) => r.name.length), 0);
@@ -14,16 +19,24 @@ export function formatCheckResults(results: readonly CheckResult[]): string {
     }
   }
 
-  const failed = results.filter((r) => r.status === 'fail').length;
-  const warned = results.filter((r) => r.status === 'warn').length;
+  const count = (s: CheckResult['status']): number =>
+    results.filter((r) => r.status === s).length;
+  const failed = count('fail');
+  const warned = count('warn');
+  const skipped = count('skip');
+
+  const parts: string[] = [];
+  if (failed > 0) parts.push(`${failed} failed`);
+  if (warned > 0) parts.push(`${warned} warning${warned === 1 ? '' : 's'}`);
+  if (skipped > 0) parts.push(`${skipped} skipped`);
 
   lines.push('');
-  if (failed > 0) {
-    lines.push(`${failed} failed, ${warned} warning${warned === 1 ? '' : 's'}`);
-  } else if (warned > 0) {
-    lines.push(`all required checks passed, ${warned} warning${warned === 1 ? '' : 's'}`);
-  } else {
+  if (parts.length === 0) {
     lines.push('all checks passed');
+  } else if (failed === 0) {
+    lines.push(`all required checks passed, ${parts.join(', ')}`);
+  } else {
+    lines.push(parts.join(', '));
   }
 
   return lines.join('\n');
