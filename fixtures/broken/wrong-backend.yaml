@@ -1,0 +1,13 @@
+autocast: 1
+output:
+  path: docs/demo.mp4
+sessions:
+  api:
+    backend: terminal
+scenes:
+  - id: boot
+    use: api
+    steps:
+      - goto: http://localhost:3000
+    assert:
+      - process_alive: true

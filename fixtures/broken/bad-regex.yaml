@@ -1,0 +1,14 @@
+autocast: 1
+output:
+  path: docs/demo.mp4
+sessions:
+  api:
+    backend: terminal
+scenes:
+  - id: boot
+    use: api
+    steps:
+      - wait_for:
+          stdout: /listening on :30(0/
+    assert:
+      - process_alive: true

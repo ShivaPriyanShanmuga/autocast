@@ -1,0 +1,11 @@
+autocast: 1
+output:
+  path: docs/demo.mp4
+sessions:
+  api:
+    backend: terminal
+scenes:
+  - id: boot
+    use: api
+    steps:
+      - type: ls

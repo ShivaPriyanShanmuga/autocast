@@ -1,0 +1,62 @@
+autocast: 1
+output:
+  path: docs/demo.mp4
+  canvas: [1280, 720]
+  fps: 30
+
+defaults:
+  typing_speed: 45ms
+  settle: 400ms
+
+style:
+  background: { gradient: ["#1a1a2e", "#16213e"], padding: 64 }
+  window: { radius: 12, shadow: true }
+  zoom: { auto: true, on: click, scale: 1.8, ease: spring }
+  cursor: { size: 1.5 }
+  motion_blur: { cursor: true, zoom: true, pan: true }
+
+sessions:
+  api:
+    backend: terminal
+    cwd: ./server
+    cols: 100
+    rows: 28
+  web:
+    backend: browser
+    viewport: [1280, 720]
+
+scenes:
+  - id: boot
+    use: api
+    narrate: "First we start the API server."
+    steps:
+      - type: "npm run dev"
+      - key: Enter
+      - wait_for:
+          stdout: /listening on :3000/
+    assert:
+      - process_alive: true
+
+  - id: order
+    use: web
+    narrate: "A customer places an order."
+    focus: "[data-test=order-form]"
+    steps:
+      - goto: http://localhost:3000
+      - click: "[data-test=new-order]"
+      - fill: { selector: "#qty", value: "3" }
+      - click: "text=Submit"
+      - wait_for:
+          selector: ".order-confirmed"
+    assert:
+      - visible: ".order-confirmed"
+      - no_console_errors: true
+
+  - id: logs
+    use: api
+    layout:
+      primary: web
+      inset: { session: api, corner: bottom-right, scale: 0.4 }
+    narrate: "And the server logs it."
+    assert:
+      - stdout_matches: /POST \/orders 201/
