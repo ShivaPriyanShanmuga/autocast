@@ -1,4 +1,9 @@
+import { join } from 'node:path';
 import type { DemoScript } from '../schema/demo.js';
+import { evaluateBrowserAssertion } from '../backends/browser/assertions.js';
+import type { FrameManifest } from '../backends/browser/frame-store.js';
+import { openBrowserSession, type BrowserSession } from '../backends/browser/session.js';
+import { executeBrowserStep } from '../backends/browser/steps.js';
 import { evaluateAssertion, type AssertResult } from '../backends/terminal/assertions.js';
 import type { CastLog } from '../backends/terminal/cast.js';
 import { openTerminalSession, type TerminalSession } from '../backends/terminal/session.js';
@@ -16,8 +21,19 @@ export interface SceneCapture {
 export interface CaptureArtifact {
   scenes: SceneCapture[];
   casts: Record<string, CastLog>;
+  frames: Record<string, FrameManifest>;
   ok: boolean;
 }
+
+export interface CaptureOptions {
+  now?: () => number;
+  /** Where browser frames are written. */
+  framesRoot?: string;
+}
+
+type AnySession =
+  | { kind: 'terminal'; id: string; session: TerminalSession }
+  | { kind: 'browser'; id: string; session: BrowserSession };
 
 function toMs(d: number | string | undefined, fallback: number): number {
   if (d === undefined) return fallback;
@@ -27,66 +43,105 @@ function toMs(d: number | string | undefined, fallback: number): number {
   return m[2] === 's' ? Number(m[1]) * 1000 : Number(m[1]);
 }
 
-export async function captureTerminalDemo(
+export async function captureDemo(
   script: DemoScript,
-  opts: { now?: () => number } = {},
+  opts: CaptureOptions = {},
 ): Promise<CaptureArtifact> {
   const now = opts.now ?? (() => Date.now());
-
-  for (const [id, session] of Object.entries(script.sessions)) {
-    if (session.backend !== 'terminal') {
-      throw new Error(
-        `session "${id}" uses the ${session.backend} backend, which arrives in Phase 2. ` +
-          'Phase 1 captures terminal sessions only.',
-      );
-    }
-  }
-
   const typingSpeedMs = toMs(script.defaults?.typing_speed, 65);
   const settleMs = toMs(script.defaults?.settle, 400);
+  const framesRoot = opts.framesRoot ?? join('.autocast', 'frames');
 
   // Insertion order is declaration order; teardown reverses it (spec 4.6).
-  const sessions = new Map<string, TerminalSession>();
+  const sessions: AnySession[] = [];
   const casts: Record<string, CastLog> = {};
+  const frames: Record<string, FrameManifest> = {};
   const scenes: SceneCapture[] = [];
 
   try {
     for (const [id, config] of Object.entries(script.sessions)) {
-      if (config.backend !== 'terminal') continue;
-      sessions.set(
-        id,
-        await openTerminalSession({
-          cols: config.cols ?? 80,
-          rows: config.rows ?? 24,
-          ...(config.cwd === undefined ? {} : { cwd: config.cwd }),
-          ...(config.env === undefined ? {} : { env: config.env }),
-          now,
-        }),
-      );
+      if (config.backend === 'terminal') {
+        sessions.push({
+          kind: 'terminal',
+          id,
+          session: await openTerminalSession({
+            cols: config.cols ?? 80,
+            rows: config.rows ?? 24,
+            ...(config.cwd === undefined ? {} : { cwd: config.cwd }),
+            ...(config.env === undefined ? {} : { env: config.env }),
+            now,
+          }),
+        });
+      } else {
+        const session = await openBrowserSession({
+          viewport: config.viewport ?? [1280, 720],
+          framesDir: join(framesRoot, id),
+          ...(config.attach?.cdp === undefined ? {} : { attachCdp: config.attach.cdp }),
+        });
+        await session.startCapture();
+        sessions.push({ kind: 'browser', id, session });
+      }
     }
 
     for (const scene of script.scenes) {
-      const session = sessions.get(scene.use);
-      if (!session) throw new Error(`scene "${scene.id}" uses unknown session "${scene.use}"`);
+      const entry = sessions.find((s) => s.id === scene.use);
+      if (!entry) throw new Error(`scene "${scene.id}" uses unknown session "${scene.use}"`);
 
       const startedAt = now();
       const steps: StepResult[] = [];
       const assertions: AssertResult[] = [];
 
       for (const step of scene.steps ?? []) {
-        const result = await executeStep(step as Record<string, unknown>, {
-          session,
-          seed: scene.id,
-          typingSpeedMs,
-          settleMs,
-          now,
-        });
+        const result =
+          entry.kind === 'terminal'
+            ? await executeStep(step as Record<string, unknown>, {
+                session: entry.session,
+                seed: scene.id,
+                typingSpeedMs,
+                settleMs,
+                now,
+              })
+            : await executeBrowserStep(step as Record<string, unknown>, {
+                session: entry.session,
+                settleMs,
+                now,
+              });
         steps.push(result);
         if (!result.ok) break; // a failed step invalidates everything after it
       }
 
+      // Zoom AFTER the steps, not before. A focus target is very often
+      // revealed BY the steps — a form that starts hidden, a result that
+      // does not exist until submit — so framing it up front would
+      // deadlock: the element cannot appear until the steps that make it
+      // appear have run. Zooming here frames the end state, and the hold
+      // below gives the screencast something to capture at that scale.
+      if (entry.kind === 'browser' && scene.focus !== undefined) {
+        const box = await entry.session.boundingBox(scene.focus);
+        if (box === null) {
+          // Lint cannot catch this: it needs a live page. Record it rather
+          // than silently rendering an unzoomed shot.
+          assertions.push({
+            name: 'focus',
+            ok: false,
+            detail:
+              `focus selector ${scene.focus} matched no visible element after the ` +
+              'scene ran (it may be absent, or present but not rendered)',
+          });
+        } else {
+          // Phase 2a applies a flat scale. Phase 2b uses `box` to frame
+          // the element and animates the scale across frames.
+          await entry.session.setZoom(1.8);
+          await new Promise((r) => setTimeout(r, settleMs));
+        }
+      }
+
       for (const assertion of scene.assert ?? []) {
-        assertions.push(await evaluateAssertion(assertion as Record<string, unknown>, session));
+        assertions.push(
+          entry.kind === 'terminal'
+            ? await evaluateAssertion(assertion as Record<string, unknown>, entry.session)
+            : await evaluateBrowserAssertion(assertion as Record<string, unknown>, entry.session),
+        );
       }
 
       scenes.push({
@@ -99,13 +154,24 @@ export async function captureTerminalDemo(
       });
     }
 
-    for (const [id, session] of sessions) casts[id] = session.cast();
-    return { scenes, casts, ok: scenes.every((s) => s.ok) };
+    for (const entry of sessions) {
+      if (entry.kind === 'terminal') casts[entry.id] = entry.session.cast();
+      else frames[entry.id] = entry.session.manifest();
+    }
+    return { scenes, casts, frames, ok: scenes.every((s) => s.ok) };
   } finally {
     // Reverse declaration order, and never let one failure strand another.
-    for (const [id, session] of [...sessions].reverse()) {
-      casts[id] ??= session.cast();
-      await session.dispose().catch(() => undefined);
+    for (const entry of [...sessions].reverse()) {
+      if (entry.kind === 'terminal') {
+        casts[entry.id] ??= entry.session.cast();
+      } else {
+        await entry.session.stopCapture().catch(() => undefined);
+        frames[entry.id] ??= entry.session.manifest();
+      }
+      await entry.session.dispose().catch(() => undefined);
     }
   }
 }
+
+/** @deprecated Phase 1 name. Use captureDemo. */
+export const captureTerminalDemo = captureDemo;

@@ -48,8 +48,8 @@ describe('Phase 0 exit criteria', () => {
     }
   });
 
-  it('carries no browser dependency yet', () => {
-    // Playwright belongs to Phase 2; its appearance here means scope crept.
+  it('carries no dependency beyond the declared set', () => {
+    // A new entry here means scope crept; add it deliberately, not by accident.
     const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as {
       dependencies: Record<string, string>;
     };
@@ -58,6 +58,7 @@ describe('Phase 0 exit criteria', () => {
       '@napi-rs/canvas',
       '@xterm/headless',
       'node-pty',
+      'playwright',
       'yaml',
       'zod',
     ]);
@@ -87,4 +88,17 @@ describe('Phase 1 exit criteria', () => {
       rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
     }
   }, 240000);
+});
+
+describe('Phase 2a exit criteria', () => {
+  it('validates the browser fixture', async () => {
+    const c = captureIO();
+    expect(await runCli(['validate', 'fixtures/browser/demo.yaml'], c.io)).toBe(0);
+  });
+
+  it('doctor reports chromium', async () => {
+    const c = captureIO();
+    await runCli(['doctor'], c.io);
+    expect(c.out()).toContain('chromium');
+  }, 60000);
 });

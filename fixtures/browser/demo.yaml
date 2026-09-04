@@ -1,0 +1,40 @@
+autocast: 1
+output:
+  path: docs/browser-demo.mp4
+  canvas: [1280, 720]
+  fps: 30
+
+defaults:
+  settle: 250ms
+
+sessions:
+  web:
+    backend: browser
+    viewport: [1280, 720]
+
+scenes:
+  - id: open
+    use: web
+    narrate: "The order desk loads."
+    steps:
+      - goto: http://127.0.0.1:34600/
+      - wait_for:
+          selector: "[data-test=new-order]"
+    assert:
+      - visible: "[data-test=new-order]"
+      - no_console_errors: true
+
+  - id: order
+    use: web
+    narrate: "A customer places an order for three units."
+    focus: "[data-test=order-form]"
+    steps:
+      - click: "[data-test=new-order]"
+      - fill: { selector: "#qty", value: "3" }
+      - click: "#submit"
+      - wait_for:
+          selector: ".order-confirmed"
+    assert:
+      - visible: ".order-confirmed"
+      - text_matches: /3 unit/
+      - no_failed_requests: true

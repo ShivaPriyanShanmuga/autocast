@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { parseSource } from '../validate/parse.js';
 import { checkSchema } from '../validate/schema-check.js';
@@ -51,9 +51,50 @@ describe('captureTerminalDemo', () => {
     expect(scene.assertions[0]!.detail).toContain('not found');
   }, 90000);
 
-  it('rejects a browser session with a clear phase message', async () => {
-    const script = load('fixtures/terminal/demo.yaml');
-    script.sessions.web = { backend: 'browser' };
-    await expect(captureTerminalDemo(script)).rejects.toThrow(/Phase 2/i);
+});
+
+describe('captureDemo with a browser session', () => {
+  const PORT = 34600;
+  let server: import('node:child_process').ChildProcess;
+
+  beforeAll(async () => {
+    const { spawn } = await import('node:child_process');
+    server = spawn(process.execPath, ['fixtures/web-app/server.mjs', String(PORT)], {
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    await new Promise<void>((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error('server did not start')), 15000);
+      server.stdout!.on('data', (d: Buffer) => {
+        if (d.toString().includes('listening on')) {
+          clearTimeout(timer);
+          resolve();
+        }
+      });
+    });
   }, 30000);
+
+  afterAll(() => server.kill());
+
+  it('captures browser scenes and stores frames', async () => {
+    const { captureDemo } = await import('./capture.js');
+    const result = await captureDemo(load('fixtures/browser/demo.yaml'));
+    try {
+      expect(result.scenes.map((s) => s.id)).toEqual(['open', 'order']);
+      expect(result.ok, JSON.stringify(result.scenes, null, 2)).toBe(true);
+      expect(result.frames.web).toBeDefined();
+      expect(result.frames.web!.frames.length).toBeGreaterThan(0);
+      expect(result.frames.web!.width).toBe(1280);
+    } finally {
+      const { rmSync } = await import('node:fs');
+      rmSync('.autocast', { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+    }
+  }, 180000);
+
+  it('still captures a terminal-only demo unchanged', async () => {
+    const { captureDemo } = await import('./capture.js');
+    const result = await captureDemo(load('fixtures/terminal/demo.yaml'));
+    expect(result.ok).toBe(true);
+    expect(Object.keys(result.casts)).toEqual(['cli']);
+    expect(Object.keys(result.frames)).toEqual([]);
+  }, 120000);
 });
