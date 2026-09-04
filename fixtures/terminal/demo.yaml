@@ -1,0 +1,37 @@
+autocast: 1
+output:
+  path: docs/terminal-demo.mp4
+
+defaults:
+  typing_speed: 20ms
+  settle: 150ms
+
+sessions:
+  cli:
+    backend: terminal
+    cols: 90
+    rows: 24
+
+scenes:
+  - id: greet
+    use: cli
+    narrate: "First, a greeting."
+    steps:
+      - type: "node fixtures/cli-app/cli.mjs greet autocast"
+      - key: Enter
+      - wait_for:
+          stdout: /ready/
+    assert:
+      - stdout_contains: "hello autocast"
+
+  - id: build
+    use: cli
+    narrate: "Now a build, with a progress bar that redraws in place."
+    steps:
+      - type: "node fixtures/cli-app/cli.mjs build"
+      - key: Enter
+      - wait_for:
+          stdout: /build complete/
+    assert:
+      - stdout_matches: /100%/
+      - process_alive: true
