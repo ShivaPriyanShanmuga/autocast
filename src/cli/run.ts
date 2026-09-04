@@ -1,4 +1,5 @@
 import { doctorCommand } from './doctor-command.js';
+import { schemaCommand } from './schema-command.js';
 import { validateCommand } from './validate-command.js';
 
 export interface CliIO {
@@ -46,6 +47,10 @@ export async function runCli(argv: string[], io: CliIO): Promise<number> {
 
   if (command === 'doctor') {
     return doctorCommand(argv.slice(1), io);
+  }
+
+  if (command === 'schema') {
+    return schemaCommand(argv.slice(1), io);
   }
 
   io.err(`autocast: unknown command "${command}"\n`);
