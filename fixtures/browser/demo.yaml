@@ -30,11 +30,11 @@ scenes:
     focus: "[data-test=order-form]"
     steps:
       - click: "[data-test=new-order]"
-      - fill: { selector: "#qty", value: "3" }
+      - fill: { selector: "#qty", value: "24" }
       - click: "#submit"
       - wait_for:
           selector: ".order-confirmed"
     assert:
       - visible: ".order-confirmed"
-      - text_matches: /3 unit/
+      - text_matches: /24 unit/
       - no_failed_requests: true

@@ -53,6 +53,14 @@ const server = createServer(async (req, res) => {
   res.end('not found');
 });
 
+// Fail loudly on a port clash. Without this the process dies with an
+// unhandled error and every waiting test times out on "server did not
+// start", which says nothing about the real cause.
+server.on('error', (err) => {
+  process.stderr.write(`web-app fixture could not listen on :${port}: ${err.message}\n`);
+  process.exit(1);
+});
+
 server.listen(port, '127.0.0.1', () => {
   process.stdout.write(`listening on :${port}\n`);
 });

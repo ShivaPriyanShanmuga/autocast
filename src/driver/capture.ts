@@ -108,6 +108,8 @@ export async function captureDemo(
                 session: entry.session,
                 settleMs,
                 now,
+                typingSpeedMs,
+                seed: scene.id,
               });
         steps.push(result);
         if (!result.ok) break; // a failed step invalidates everything after it

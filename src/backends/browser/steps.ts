@@ -1,3 +1,4 @@
+import { planTyping } from '../terminal/typing.js';
 import type { StepResult } from '../terminal/steps.js';
 import type { BrowserSession } from './session.js';
 
@@ -5,6 +6,10 @@ export interface BrowserStepContext {
   session: BrowserSession;
   settleMs: number;
   now: () => number;
+  /** Per-character delay for `fill`, matching the terminal backend. */
+  typingSpeedMs?: number;
+  /** Seeds typing jitter; use the scene id so re-renders match. */
+  seed?: string;
   /**
    * How long a click or fill waits for its target. Configurable so tests
    * and fast-failing runs need not sit through the full default.
@@ -79,7 +84,19 @@ export async function executeBrowserStep(
     const f = step.fill as { selector: string; value: string };
     await recordTarget(ctx, f.selector, false);
     try {
-      await page.locator(f.selector).first().fill(f.value, { timeout: actionTimeout });
+      const field = page.locator(f.selector).first();
+      // Clear, then type character by character with the same humanised
+      // rhythm the terminal backend uses. fill() sets the value in one
+      // shot, which on screen reads as the text teleporting in.
+      await field.fill('', { timeout: actionTimeout });
+      await field.focus({ timeout: actionTimeout });
+      for (const stroke of planTyping(f.value, {
+        seed: ctx.seed ?? f.selector,
+        baseMs: ctx.typingSpeedMs ?? 65,
+      })) {
+        await page.keyboard.type(stroke.char);
+        await sleep(stroke.delayMs);
+      }
       await sleep(ctx.settleMs);
       return done(true);
     } catch (e) {

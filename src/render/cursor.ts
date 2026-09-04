@@ -23,8 +23,12 @@ export function minimumJerk(t: number): number {
 
 /** How long a click pulse stays visible. */
 const CLICK_PULSE_SEC = 0.35;
-/** Default time taken to travel between two keyframes. */
-const DEFAULT_TRAVEL_SEC = 0.45;
+/**
+ * Default time taken to travel between two keyframes. Deliberately
+ * unhurried: 0.45s read as darting, and a demo cursor is a pointer for
+ * the viewer's attention, not a speed run.
+ */
+const DEFAULT_TRAVEL_SEC = 0.7;
 
 export function cursorAt(
   keyframes: CursorKeyframe[],
