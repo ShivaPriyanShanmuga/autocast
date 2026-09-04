@@ -24,6 +24,18 @@ function toMs(d: number | string | undefined, fallback: number): number {
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+/** Record where the cursor should be for this action, before acting. */
+async function recordTarget(
+  ctx: BrowserStepContext,
+  selector: string,
+  click: boolean,
+): Promise<void> {
+  const box = await ctx.session.boundingBox(selector);
+  if (box) {
+    ctx.session.recordPointer({ x: box.x + box.width / 2, y: box.y + box.height / 2 }, click);
+  }
+}
+
 const message = (e: unknown): string =>
   e instanceof Error ? (e.message.split('\n')[0] ?? e.message) : String(e);
 
@@ -53,6 +65,7 @@ export async function executeBrowserStep(
 
   if (typeof step.click === 'string') {
     const selector = step.click;
+    await recordTarget(ctx, selector, true);
     try {
       await page.locator(selector).first().click({ timeout: actionTimeout });
       await sleep(ctx.settleMs);
@@ -64,6 +77,7 @@ export async function executeBrowserStep(
 
   if (step.fill !== undefined) {
     const f = step.fill as { selector: string; value: string };
+    await recordTarget(ctx, f.selector, false);
     try {
       await page.locator(f.selector).first().fill(f.value, { timeout: actionTimeout });
       await sleep(ctx.settleMs);

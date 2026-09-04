@@ -1,4 +1,5 @@
 import type { Browser, BrowserContext, CDPSession, Page } from 'playwright';
+import type { CursorKeyframe, CursorPoint } from '../../render/cursor.js';
 import { FrameStore, type FrameManifest } from './frame-store.js';
 
 export interface BrowserSessionOptions {
@@ -24,6 +25,8 @@ export interface BrowserSession {
   boundingBox(selector: string): Promise<BoundingBox | null>;
   consoleErrors(): string[];
   failedRequests(): string[];
+  recordPointer(at: CursorPoint, click: boolean): void;
+  pointerTrack(): CursorKeyframe[];
   manifest(): FrameManifest;
   dispose(): Promise<void>;
 }
@@ -53,6 +56,7 @@ export async function openBrowserSession(
 
   const consoleErrors: string[] = [];
   const failedRequests: string[] = [];
+  const pointerTrack: CursorKeyframe[] = [];
   page.on('console', (m) => {
     if (m.type() === 'error') consoleErrors.push(m.text());
   });
@@ -115,6 +119,14 @@ export async function openBrowserSession(
 
     consoleErrors: () => [...consoleErrors],
     failedRequests: () => [...failedRequests],
+
+    recordPointer(at, click) {
+      // Unix seconds, the same clock the screencast stamps frames with,
+      // so the two timelines need no conversion to line up.
+      pointerTrack.push({ tSec: Date.now() / 1000, at, ...(click ? { click: true } : {}) });
+    },
+
+    pointerTrack: () => [...pointerTrack],
     manifest: () => store.manifest(width, height),
 
     async dispose() {

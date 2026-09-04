@@ -4,6 +4,7 @@ import { evaluateBrowserAssertion } from '../backends/browser/assertions.js';
 import type { FrameManifest } from '../backends/browser/frame-store.js';
 import { openBrowserSession, type BrowserSession } from '../backends/browser/session.js';
 import { executeBrowserStep } from '../backends/browser/steps.js';
+import type { CursorKeyframe } from '../render/cursor.js';
 import { evaluateAssertion, type AssertResult } from '../backends/terminal/assertions.js';
 import type { CastLog } from '../backends/terminal/cast.js';
 import { openTerminalSession, type TerminalSession } from '../backends/terminal/session.js';
@@ -22,6 +23,7 @@ export interface CaptureArtifact {
   scenes: SceneCapture[];
   casts: Record<string, CastLog>;
   frames: Record<string, FrameManifest>;
+  pointers: Record<string, CursorKeyframe[]>;
   ok: boolean;
 }
 
@@ -56,6 +58,7 @@ export async function captureDemo(
   const sessions: AnySession[] = [];
   const casts: Record<string, CastLog> = {};
   const frames: Record<string, FrameManifest> = {};
+  const pointers: Record<string, CursorKeyframe[]> = {};
   const scenes: SceneCapture[] = [];
 
   try {
@@ -155,10 +158,14 @@ export async function captureDemo(
     }
 
     for (const entry of sessions) {
-      if (entry.kind === 'terminal') casts[entry.id] = entry.session.cast();
-      else frames[entry.id] = entry.session.manifest();
+      if (entry.kind === 'terminal') {
+        casts[entry.id] = entry.session.cast();
+      } else {
+        frames[entry.id] = entry.session.manifest();
+        pointers[entry.id] = entry.session.pointerTrack();
+      }
     }
-    return { scenes, casts, frames, ok: scenes.every((s) => s.ok) };
+    return { scenes, casts, frames, pointers, ok: scenes.every((s) => s.ok) };
   } finally {
     // Reverse declaration order, and never let one failure strand another.
     for (const entry of [...sessions].reverse()) {
@@ -167,6 +174,7 @@ export async function captureDemo(
       } else {
         await entry.session.stopCapture().catch(() => undefined);
         frames[entry.id] ??= entry.session.manifest();
+        pointers[entry.id] ??= entry.session.pointerTrack();
       }
       await entry.session.dispose().catch(() => undefined);
     }
