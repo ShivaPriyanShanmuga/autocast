@@ -5,7 +5,11 @@ import { join } from 'node:path';
 import { encodeFrames, probeVideo } from './encoder.js';
 
 const dir = mkdtempSync(join(tmpdir(), 'autocast-enc-'));
-afterAll(() => rmSync(dir, { recursive: true, force: true }));
+afterAll(() =>
+  // Windows can hold a brief lock on a just-closed file; retry rather
+  // than fail the suite on cleanup.
+  rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }),
+);
 
 const W = 160;
 const H = 120;

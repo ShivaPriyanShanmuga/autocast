@@ -63,15 +63,39 @@ export async function encodeFrames(
     );
   });
 
+  // We only await `finished` on the success path. Without a handler here,
+  // aborting would surface as an unhandled rejection and can terminate the
+  // host process.
+  finished.catch(() => undefined);
+
   // Swallow EPIPE: if ffmpeg dies early we want its exit message, not a
   // stream error that masks it.
   ff.stdin.on('error', () => undefined);
+
+  /**
+   * Kill ffmpeg and wait for it to actually exit. Waiting matters on
+   * Windows, which keeps the output file locked until the process is gone
+   * — a caller that deletes its output directory would otherwise hit
+   * EPERM.
+   */
+  const abort = async (): Promise<void> => {
+    ff.kill();
+    if (ff.exitCode !== null || ff.signalCode !== null) return;
+    await new Promise<void>((resolve) => {
+      const timer = setTimeout(resolve, 2000);
+      timer.unref();
+      ff.once('close', () => {
+        clearTimeout(timer);
+        resolve();
+      });
+    });
+  };
 
   let count = 0;
   try {
     for await (const frame of frames) {
       if (frame.length !== expected) {
-        ff.kill();
+        await abort();
         throw new Error(
           `frame ${count} is ${frame.length} bytes, expected ${expected} ` +
             `(${opts.width}x${opts.height} RGBA)`,
@@ -83,12 +107,12 @@ export async function encodeFrames(
       count++;
     }
   } catch (error) {
-    ff.kill();
+    await abort();
     throw error;
   }
 
   if (count === 0) {
-    ff.kill();
+    await abort();
     throw new Error('no frames were produced, so there is nothing to encode');
   }
 
