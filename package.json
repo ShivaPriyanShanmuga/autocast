@@ -23,6 +23,7 @@
     "@napi-rs/canvas": "^1.0.8",
     "@xterm/headless": "^6.0.0",
     "node-pty": "^1.1.0",
+    "playwright": "^1.62.1",
     "yaml": "^2.7.0",
     "zod": "^4.0.0"
   },

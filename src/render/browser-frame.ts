@@ -1,0 +1,90 @@
+import { readFile } from 'node:fs/promises';
+import {
+  createCanvas,
+  loadImage,
+  type Canvas,
+  type Image,
+  type SKRSContext2D,
+} from '@napi-rs/canvas';
+import type { Theme } from './theme.js';
+
+export interface BrowserFrameGeometry {
+  width: number;
+  height: number;
+}
+
+/**
+ * Draws captured browser JPEGs onto the shared canvas.
+ *
+ * The resampler holds one source across many ticks, so the decoded image
+ * is cached: without it a 30fps render of a still page would decode the
+ * same JPEG ninety times per second of video.
+ */
+export class BrowserFrameRenderer {
+  private readonly canvas: Canvas;
+  private readonly ctx: SKRSContext2D;
+  private cachedPath: string | null = null;
+  private cachedImage: Image | null = null;
+  /** Test-visible: how many times a JPEG was actually decoded. */
+  decodeCount = 0;
+
+  constructor(
+    private readonly geometry: BrowserFrameGeometry,
+    private readonly theme: Theme,
+  ) {
+    this.canvas = createCanvas(geometry.width, geometry.height);
+    this.ctx = this.canvas.getContext('2d');
+  }
+
+  /** Draw on the composed frame before it is read out. */
+  get context(): SKRSContext2D {
+    return this.ctx;
+  }
+
+  private async imageFor(path: string): Promise<Image | null> {
+    if (this.cachedPath === path && this.cachedImage) return this.cachedImage;
+    try {
+      const image = await loadImage(await readFile(path));
+      this.decodeCount++;
+      this.cachedPath = path;
+      this.cachedImage = image;
+      return image;
+    } catch {
+      // A frame that will not decode is a lost frame, not a lost render.
+      this.cachedPath = null;
+      this.cachedImage = null;
+      return null;
+    }
+  }
+
+  /** Compose the page frame; draw overlays, then call readPixels(). */
+  async compose(jpegPath: string | null): Promise<void> {
+    const { ctx, geometry, theme } = this;
+
+    ctx.fillStyle = theme.background;
+    ctx.fillRect(0, 0, geometry.width, geometry.height);
+
+    const image = jpegPath === null ? null : await this.imageFor(jpegPath);
+    if (image) {
+      // Fit inside the canvas preserving aspect ratio; never stretch.
+      const scale = Math.min(geometry.width / image.width, geometry.height / image.height);
+      const w = image.width * scale;
+      const h = image.height * scale;
+      ctx.drawImage(image, (geometry.width - w) / 2, (geometry.height - h) / 2, w, h);
+    }
+  }
+
+  readPixels(): Buffer {
+    return Buffer.from(this.canvas.data());
+  }
+
+  async render(jpegPath: string | null): Promise<Buffer> {
+    await this.compose(jpegPath);
+    return this.readPixels();
+  }
+
+  dispose(): void {
+    this.cachedPath = null;
+    this.cachedImage = null;
+  }
+}

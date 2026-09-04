@@ -126,16 +126,43 @@ const nodePtyCheck: Check = {
   },
 };
 
+const chromiumCheck: Check = {
+  name: 'chromium',
+  async run() {
+    try {
+      const { chromium } = (await import('playwright')) as {
+        chromium: { executablePath(): string };
+      };
+      const path = chromium.executablePath();
+      await access(path, constants.X_OK);
+      return { name: 'chromium', status: 'ok', detail: path };
+    } catch (error) {
+      return {
+        name: 'chromium',
+        status: 'fail',
+        detail: `browser binary not available: ${
+          error instanceof Error ? error.message.split('\n')[0] : String(error)
+        }`,
+        hint: [
+          '    autocast drives a real Chromium for browser scenes.',
+          '    Install it with:',
+          '      npx playwright install chromium',
+        ].join('\n'),
+      };
+    }
+  },
+};
+
 /**
- * Each phase registers only what it needs. Phase 2 adds Playwright
- * chromium — reporting a dependency the installed feature set does not
- * use would not be truthful.
+ * Each phase registers only what it needs — reporting a dependency the
+ * installed feature set does not use would not be truthful.
  */
 export const CHECKS: Check[] = [
   ffmpegCheck,
   x264Check,
   rubberbandCheck,
   nodePtyCheck,
+  chromiumCheck,
   cwdWritableCheck,
 ];
 
