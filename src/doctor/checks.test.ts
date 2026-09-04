@@ -78,3 +78,23 @@ describe('node-pty check', () => {
     expect(r.detail).toMatch(/\d+\.\d+\.\d+/);
   });
 });
+
+describe('chromium check', () => {
+  it('is registered in the default check list', () => {
+    expect(CHECKS.map((c) => c.name)).toContain('chromium');
+  });
+
+  it('reports ok when the browser binary exists', async () => {
+    const check = CHECKS.find((c) => c.name === 'chromium')!;
+    const r = await check.run();
+    expect(r.status).toBe('ok');
+  });
+
+  it('names the install command when it is missing', async () => {
+    const check = CHECKS.find((c) => c.name === 'chromium')!;
+    const r = await check.run();
+    if (r.status !== 'ok') {
+      expect(r.hint).toContain('playwright install chromium');
+    }
+  });
+});
