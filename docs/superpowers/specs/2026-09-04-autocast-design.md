@@ -315,6 +315,28 @@ sixel form a long tail requiring explicit test coverage.
 
 **Total system dependencies: ffmpeg.** Everything else is npm with prebuilds.
 
+### 6.1 Verified by spike, 2026-09-04 (Node 24.12, win32 x64)
+
+`node-pty` 1.1.0, `@xterm/headless` 6.0.0 and `@napi-rs/canvas` 1.0.8 all
+install from prebuilds with no compiler. Confirmed working: ANSI colour with
+per-cell attributes (`getFgColor`, `getChars`), carriage-return progress-bar
+redraw, alt-screen enter/leave with `buffer.active.type` reporting
+`normal`/`alternate`, box-drawing Unicode, and canvas glyph rendering with
+`GlobalFonts.registerFromPath` for the bundled font.
+
+Two Windows behaviours the implementation must handle:
+
+- **Never call node-pty's `.kill()` on Windows.** Its ConPTY kill path spawns
+  a console-enumeration helper that dies with `AttachConsole failed` whenever
+  the parent has no attached console — which is always true when stdout is
+  redirected, and always true in CI. It crashes a child process and prints a
+  stack trace to our stderr. Killing the process tree by PID
+  (`taskkill /pid <pid> /T /F`) terminates the same processes with no such
+  noise. POSIX `.kill()` is fine.
+- **A live PTY holds the event loop open.** Setting `process.exitCode` and
+  returning is not enough to end the process after a capture; teardown must
+  dispose sessions and the CLI must exit explicitly.
+
 ## 7. Timing
 
 After pass 1, per scene: `V` = real video duration, `A` = narration duration

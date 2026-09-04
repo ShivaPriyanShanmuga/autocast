@@ -7,11 +7,20 @@ const io: CliIO = {
 };
 
 runCli(process.argv.slice(2), io).then(
-  (code) => {
-    process.exitCode = code;
-  },
+  (code) => finish(code),
   (error: unknown) => {
     io.err(`autocast: ${error instanceof Error ? error.message : String(error)}`);
-    process.exitCode = 2;
+    finish(2);
   },
 );
+
+/**
+ * A live PTY keeps the event loop open (spec section 6.1), so setting
+ * process.exitCode is not enough to end the process after a render. The
+ * write callback fires once stdout has flushed, which matters when it is
+ * a pipe rather than a TTY.
+ */
+function finish(code: number): void {
+  process.exitCode = code;
+  process.stdout.write('', () => process.exit(code));
+}

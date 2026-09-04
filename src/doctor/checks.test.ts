@@ -65,3 +65,16 @@ describe('dependency checks when ffmpeg is present', () => {
     expect(r.detail).toContain('not enabled');
   });
 });
+
+describe('node-pty check', () => {
+  it('is registered in the default check list', () => {
+    expect(CHECKS.map((c) => c.name)).toContain('node-pty');
+  });
+
+  it('reports ok when the native module loads', async () => {
+    const check = CHECKS.find((c) => c.name === 'node-pty')!;
+    const r = await check.run();
+    expect(r.status).toBe('ok');
+    expect(r.detail).toMatch(/\d+\.\d+\.\d+/);
+  });
+});

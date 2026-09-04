@@ -1,4 +1,5 @@
 import { doctorCommand } from './doctor-command.js';
+import { renderCommand } from './render-command.js';
 import { schemaCommand } from './schema-command.js';
 import { validateCommand } from './validate-command.js';
 
@@ -15,6 +16,7 @@ Usage:
   autocast <command> [options]
 
 Commands:
+  render <file>     Capture and encode a demo to video
   validate <file>   Check a demo script without running it
   doctor            Check system dependencies
   schema            Print the demo-script JSON Schema
@@ -51,6 +53,10 @@ export async function runCli(argv: string[], io: CliIO): Promise<number> {
 
   if (command === 'schema') {
     return schemaCommand(argv.slice(1), io);
+  }
+
+  if (command === 'render') {
+    return renderCommand(argv.slice(1), io);
   }
 
   io.err(`autocast: unknown command "${command}"\n`);

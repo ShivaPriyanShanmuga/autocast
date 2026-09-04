@@ -48,10 +48,43 @@ describe('Phase 0 exit criteria', () => {
     }
   });
 
-  it('no capture dependency is present in this phase', () => {
+  it('carries no browser dependency yet', () => {
+    // Playwright belongs to Phase 2; its appearance here means scope crept.
     const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as {
       dependencies: Record<string, string>;
     };
-    expect(Object.keys(pkg.dependencies).sort()).toEqual(['yaml', 'zod']);
+    expect(Object.keys(pkg.dependencies).sort()).toEqual([
+      '@fontsource/jetbrains-mono',
+      '@napi-rs/canvas',
+      '@xterm/headless',
+      'node-pty',
+      'yaml',
+      'zod',
+    ]);
   });
+});
+
+describe('Phase 1 exit criteria', () => {
+  it('renders a real command to a playable mp4', async () => {
+    const { mkdtempSync, rmSync, existsSync } = await import('node:fs');
+    const { tmpdir } = await import('node:os');
+    const { join } = await import('node:path');
+    const { probeVideo } = await import('../render/encoder.js');
+
+    const dir = mkdtempSync(join(tmpdir(), 'autocast-accept-'));
+    try {
+      const out = join(dir, 'phase1.mp4');
+      const c = captureIO();
+      const code = await runCli(['render', 'fixtures/terminal/demo.yaml', '--out', out], c.io);
+
+      expect(code, c.out() + c.err()).toBe(0);
+      expect(existsSync(out)).toBe(true);
+
+      const probe = await probeVideo(out);
+      expect(probe.codec).toBe('h264');
+      expect(probe.frames).toBeGreaterThan(60); // more than 2 seconds at 30fps
+    } finally {
+      rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+    }
+  }, 240000);
 });
