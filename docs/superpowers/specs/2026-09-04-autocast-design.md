@@ -52,7 +52,7 @@ spanning web and non-web, producing a single continuous artifact.**
 4. **The demo script is declarative data (YAML), not code.**
 5. **v1 = browser + terminal + CDP attach for Electron/Tauri.** Native desktop
    window capture is deferred (see section 11).
-6. **Silent first.** TTS is additive, phase 5.
+6. **Silent first.** Cinematic polish is phase 5; TTS is additive, phase 6.
 
 ### 3.1 Two premises in the brief that were corrected
 
@@ -168,6 +168,19 @@ retiming. `Page.startScreencast` returns JPEG frames each carrying a real
 timestamp: variable-rate data we can resample, idle-compress, and align to
 narration. Choosing `recordVideo` would forfeit all of section 7.
 
+**Capture happens at `deviceScaleFactor: 2` and is composited down.** The
+browser is captured at 2560x1440 and downscaled onto the 720p canvas. This is
+not a quality nicety — it is what makes zoom (section 7.2) lossless up to 2x.
+Zooming into a 1x raster produces upscaled mush; zooming into a 2x capture
+consumes real pixels. **This decision cannot be deferred:** building phase 2 at
+1x and adding polish later would require re-recording every demo authored in
+between. Cost is 4x frame data on disk during pass 1 plus downscale CPU, both
+bounded because frames stream to disk rather than memory.
+
+The terminal is exempt — it is rendered offline at whatever resolution the
+compositor asks for, so terminal zoom is always pixel-exact. Another dividend
+of the log-replay half of section 4.2.
+
 ### 4.6 Sessions are not scenes
 
 The flagship demo — start the server, hit it in the browser, show the logs —
@@ -198,6 +211,14 @@ pidfile-based orphan detection on the next run.
 autocast: 1
 output:  { path: docs/demo.mp4, canvas: [1280, 720], fps: 30 }
 defaults: { typing_speed: 45ms, settle: 400ms }
+
+# optional; phase 5. Omitted entirely = plain, unstyled capture.
+style:
+  background:  { gradient: ["#1a1a2e", "#16213e"], padding: 64 }
+  window:      { radius: 12, shadow: true }
+  zoom:        { auto: true, on: click, scale: 1.8, ease: spring }
+  cursor:      { size: 1.5 }
+  motion_blur: { cursor: true, zoom: true, pan: true }
 
 sessions:
   api: { backend: terminal, cwd: ./server, cols: 100, rows: 28 }
@@ -333,10 +354,28 @@ re-renders without re-running anything.
   Humanized *and* deterministic.
 - **Cursor** — headless has no cursor, so we draw one. Minimum-jerk eased paths
   between targets with slight overshoot-and-settle; clicks get a ring pulse.
-- **Zoom** — `focus: <selector>`; the element's bounding box is already known
-  from the browser, so the compositor eases a scale-and-pan toward it.
+- **Zoom** — `focus: <selector>` for explicit framing, and `style.zoom.auto`
+  for automatic zoom on click targets. **We frame better than a screen
+  recorder can.** Screen Studio and its peers infer intent from pixels: they
+  see a click at (x, y) and guess a zoom factor. We know the semantic action
+  and the element's exact bounding box from the DOM, so we frame to fit the
+  element plus margin, and we know precisely when the interaction ends and the
+  camera should pull back. Their version is a heuristic; ours is exact. Scene
+  boundaries also zoom out deliberately, because we know a cut is coming.
+- **Motion blur** — camera moves (pan, zoom, cursor travel) are composited at
+  4x the target fps and box-averaged down, producing true accumulation blur.
+  Only motion segments pay the cost, not the whole video. Configurable
+  independently per channel via `style.motion_blur`.
+- **Presentation frame** — optional gradient/solid background with padding,
+  rounded window corners and a drop shadow (`style.background`,
+  `style.window`). Pure compositor layer over the normalized canvas.
 - **Pacing** — a settle beat after every action, no instant cut on a click,
   short crossfade at scene boundaries.
+
+All of the above are additive compositor passes, so they can land after
+capture and composition are solid (phase 5) without reopening either. The one
+exception is capture resolution, which is settled in section 4.5 and must be
+right from phase 2.
 
 ## 8. Verification and error handling
 
@@ -506,22 +545,29 @@ OSes.
 *Exit:* break a selector on purpose and the render fails fast with a named
 error and non-zero exit. Render twice and get identical report cores.
 
-**Phase 5 — Narration.** Captions first (still silent), then TTS behind the
-sync policy. The default must be free, keyless and local; Piper and Kokoro are
-the candidates, decided at phase-5 planning on three criteria — cross-platform
-install footprint, licence, and whether word-level timing marks are exposed
-(needed for lever 3 in section 7.1). Paid providers optional behind the same
-interface.
+**Phase 5 — Cinematic polish.** The `style:` block: auto-zoom on click targets,
+spring easing, motion blur, cursor scaling, gradient background with padding,
+rounded corners and drop shadow. All additive compositor passes over a working
+pipeline; no capture changes, because section 4.5 already settled resolution.
+*Exit:* render the flagship twice, with and without `style:`, and the styled
+version is one you would actually post publicly. Auto-zoom frames the clicked
+element correctly without any `focus:` hint.
+
+**Phase 6 — Narration.** Captions first, then TTS behind the sync policy. The
+default must be free, keyless and local; Piper and Kokoro are the candidates,
+decided at phase-6 planning on three criteria — cross-platform install
+footprint, licence, and whether word-level timing marks are exposed (needed for
+lever 3 in section 7.1). Paid providers optional behind the same interface.
 *Exit:* the flagship with a voiceover that lands on the action; a deliberately
 over-wordy narration trips `sync: strict` instead of silently looking wrong.
 
-**Phase 6 — Agent surface and release.** Claude Code skill, `AGENTS.md`, docs,
+**Phase 7 — Agent surface and release.** Claude Code skill, `AGENTS.md`, docs,
 `autocast init`, npm publish.
 *Exit:* in a different repo, an agent produces an mp4 without the schema being
 explained to it by hand.
 
-Phases 0-4 deliver a complete, useful, silent tool. Phase 5 is additive by
-design.
+Phases 0-4 deliver a complete, useful silent tool; phase 5 makes it one people
+will actually want to publish. Narration is additive on top of both, by design.
 
 ## 13. Known risks
 
@@ -532,3 +578,5 @@ design.
 | CDP screencast frame drops under load | Timestamps are authoritative, not frame counts; resampler interpolates by holding the last frame |
 | Compositor performance at 1080p | Frames stream to ffmpeg via stdin; no full-video buffering; encode is single-pass |
 | `node-pty` prebuild missing on an exotic platform | Preflight detects module load failure and prints build-from-source instructions |
+| 2x browser capture inflates pass-1 disk use 4x | Frames stream to disk as JPEG, never buffered in memory; intermediates live under `.autocast/` and are cleaned on success. Long demos get a documented disk-space note, and `deviceScaleFactor` is overridable for users who never zoom |
+| Motion blur at 4x compositing fps costs CPU | Applied only to camera-motion segments, not the whole timeline; disabled by default when `style:` is absent |
