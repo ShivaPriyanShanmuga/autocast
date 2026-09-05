@@ -21,6 +21,8 @@ export interface SceneCapture {
 
 export interface CaptureArtifact {
   scenes: SceneCapture[];
+  /** Scene id that stopped the run, or null if it ran to completion. */
+  abortedAt: string | null;
   casts: Record<string, CastLog>;
   frames: Record<string, FrameManifest>;
   pointers: Record<string, CursorKeyframe[]>;
@@ -31,6 +33,12 @@ export interface CaptureOptions {
   now?: () => number;
   /** Where browser frames are written. */
   framesRoot?: string;
+  /**
+   * What to do when a scene fails. Spec section 8: abort is the
+   * documented default, because later scenes usually fail only BECAUSE
+   * an earlier one did, and that cascade buries the real cause.
+   */
+  onSceneFail?: 'abort' | 'continue';
 }
 
 type AnySession =
@@ -63,6 +71,7 @@ export async function captureDemo(
   const frames: Record<string, FrameManifest> = {};
   const pointers: Record<string, CursorKeyframe[]> = {};
   const scenes: SceneCapture[] = [];
+  let abortedAt: string | null = null;
 
   try {
     for (const [id, config] of Object.entries(script.sessions)) {
@@ -152,14 +161,20 @@ export async function captureDemo(
         );
       }
 
+      const ok = steps.every((s) => s.ok) && assertions.every((a) => a.ok);
       scenes.push({
         id: scene.id,
         steps,
         assertions,
-        ok: steps.every((s) => s.ok) && assertions.every((a) => a.ok),
+        ok,
         startedAt,
         endedAt: now(),
       });
+
+      if (!ok && (opts.onSceneFail ?? 'abort') === 'abort') {
+        abortedAt = scene.id;
+        break;
+      }
     }
 
     for (const entry of sessions) {
@@ -170,7 +185,7 @@ export async function captureDemo(
         pointers[entry.id] = entry.session.pointerTrack();
       }
     }
-    return { scenes, casts, frames, pointers, ok: scenes.every((s) => s.ok) };
+    return { scenes, casts, frames, pointers, abortedAt, ok: scenes.every((s) => s.ok) };
   } finally {
     // Reverse declaration order, and never let one failure strand another.
     for (const entry of [...sessions].reverse()) {
