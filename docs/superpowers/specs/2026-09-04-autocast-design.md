@@ -444,6 +444,12 @@ re-renders without re-running anything.
   Humanized *and* deterministic.
 - **Cursor** — headless has no cursor, so we draw one. Minimum-jerk eased paths
   between targets with slight overshoot-and-settle; clicks get a ring pulse.
+- **Zoom is a camera over the FINISHED frame.** The camera is applied after
+  compositing and presentation, so zooming scales the background, padding and
+  rounded window along with the content. Applying it to the content alone
+  reads wrong: the window stays pinned while its contents grow, which is not
+  what moving into a screen looks like.
+
 - **Zoom is a camera, not a crop.** A terminal is rendered once at the zoom
   factor and viewed through a moving rectangle (`src/render/camera.ts`).
   Re-rendering at a larger font per frame was tried first and jittered: the

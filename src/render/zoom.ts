@@ -26,7 +26,14 @@ export interface PlanZoomOptions {
   ease?: 'spring' | 'cubic';
 }
 
-const DEFAULT_STEPS = 12;
+/**
+ * Steps default to one per output frame.
+ *
+ * Browser zoom is capture-side: each step repaints and the screencast
+ * emits a frame. With fewer steps than output frames the resampler holds
+ * each captured frame across several ticks, and the zoom visibly steps.
+ */
+const OUTPUT_FPS = 30;
 /**
  * 420ms read as hurried: a zoom is a change of attention, and the eye
  * needs longer to follow it than a cursor needs to cross the screen.
@@ -34,8 +41,8 @@ const DEFAULT_STEPS = 12;
 const DEFAULT_DURATION_MS = 800;
 
 export function planZoom(from: number, to: number, opts: PlanZoomOptions = {}): ZoomStep[] {
-  const count = Math.max(1, opts.steps ?? DEFAULT_STEPS);
   const durationMs = opts.durationMs ?? DEFAULT_DURATION_MS;
+  const count = Math.max(1, opts.steps ?? Math.ceil((durationMs / 1000) * OUTPUT_FPS));
   const ease = opts.ease === 'cubic' ? minimumJerk : spring;
 
   if (Math.abs(to - from) < 1e-6) return [{ scale: to, delayMs: 0 }];

@@ -3,6 +3,7 @@ import type { CastLog } from '../backends/terminal/cast.js';
 import { BrowserFrameRenderer, composeBrowserWithCursor } from '../render/browser-frame.js';
 import type { CursorKeyframe, ZoomKeyframe } from '../render/cursor.js';
 import { Presenter } from '../render/present.js';
+import { createCanvas } from '@napi-rs/canvas';
 import { resolveStyle } from '../render/style.js';
 import type { Canvas } from '@napi-rs/canvas';
 import { rm } from 'node:fs/promises';
@@ -214,6 +215,24 @@ export async function renderDemo(
       plan.windows.filter((w) => w.terminalFocus).map((w) => w.primary),
     );
     const zoomTarget = script.style?.zoom?.scale ?? 1.8;
+    const ss = zoomedTerminals.size > 0 ? zoomTarget : 1;
+
+    // A supersampled chain for zooming windows. The camera is applied to
+    // the FINISHED frame — background, padding and rounded window
+    // included — so zooming reads as moving into the screen rather than
+    // scaling the contents of a pinned window.
+    const bigW = Math.round(canvasW * ss);
+    const bigH = Math.round(canvasH * ss);
+    const zoomCompositor = new LayoutCompositor(bigW, bigH, DEFAULT_THEME);
+    const zoomPresenter = new Presenter(bigW, bigH, {
+      ...resolvedStyle,
+      // Scale the frame with the canvas, or the padding and corners
+      // shrink relative to the content.
+      padding: Math.round(resolvedStyle.padding * ss),
+      radius: Math.round(resolvedStyle.radius * ss),
+    });
+    const outCanvas = createCanvas(canvasW, canvasH);
+    const outCtx = outCanvas.getContext('2d');
 
     const players = new Map<string, CastPlayer>();
     const terminalRenderers = new Map<string, FrameRenderer>();
@@ -221,11 +240,16 @@ export async function renderDemo(
       players.set(id, new CastPlayer(cast, DEFAULT_THEME));
       // Render at the zoom factor so the camera has real pixels to crop
       // into; a demo that never zooms this terminal pays nothing.
-      const ss = zoomedTerminals.has(id) ? zoomTarget : 1;
+      const sessionSs = zoomedTerminals.has(id) ? ss : 1;
       terminalRenderers.set(
         id,
         new FrameRenderer(
-          fitGeometry(cast.width, cast.height, Math.round(canvasW * ss), Math.round(canvasH * ss)),
+          fitGeometry(
+            cast.width,
+            cast.height,
+            Math.round(canvasW * sessionSs),
+            Math.round(canvasH * sessionSs),
+          ),
           DEFAULT_THEME,
         ),
       );
@@ -259,7 +283,7 @@ export async function renderDemo(
       sessionId: string,
       wallMs: number,
       terminalZoom?: { pattern: string; progress: number },
-    ): Promise<{ surface: Canvas; camera?: Rect }> => {
+    ): Promise<{ surface: Canvas; focus?: Rect | null }> => {
       const player = players.get(sessionId);
       if (player) {
         const cast = capture.casts[sessionId]!;
@@ -272,14 +296,10 @@ export async function renderDemo(
 
         if (!terminalZoom) return { surface: renderer.surface };
 
-        // Move a camera over the already-rendered surface. Sub-pixel and
-        // smooth, where re-rendering at a rounded font size jittered.
-        const eased = 1 + (zoomTarget - 1) * spring(terminalZoom.progress);
         const cell = findInScreen(screen, terminalZoom.pattern);
-        const focus = cell ? cellRectToPixels(renderer.geometry, screen, cell) : null;
         return {
           surface: renderer.surface,
-          camera: cameraRect(renderer.geometry, focus, eased),
+          focus: cell ? cellRectToPixels(renderer.geometry, screen, cell) : null,
         };
       }
 
@@ -330,7 +350,52 @@ export async function renderDemo(
           ? { pattern: at.window.terminalFocus, progress: tailProgress(at.window, outSec) }
           : undefined;
         const primary = await surfaceFor(at.window.primary, at.wallMs, termZoom);
-        compositor.drawFullscreen(primary.surface, primary.camera);
+
+        if (termZoom) {
+          zoomCompositor.clear();
+          zoomCompositor.drawFullscreen(primary.surface);
+          if (at.window.inset) {
+            const inset = await surfaceFor(at.window.inset.session, at.wallMs);
+            zoomCompositor.drawInset(
+              inset.surface,
+              at.window.inset,
+              Math.round(resolvedStyle.radius * ss),
+            );
+          }
+          zoomPresenter.presentToSurface(zoomCompositor.surface);
+
+          // Map the focus from the terminal surface into the presented
+          // frame: the terminal fills the compositor 1:1, and the
+          // presenter insets it by the padding.
+          const content = zoomPresenter.contentRect();
+          const mapped = primary.focus
+            ? {
+                x: content.x + (primary.focus.x / bigW) * content.width,
+                y: content.y + (primary.focus.y / bigH) * content.height,
+                width: (primary.focus.width / bigW) * content.width,
+                height: (primary.focus.height / bigH) * content.height,
+              }
+            : null;
+
+          const eased = 1 + (zoomTarget - 1) * spring(termZoom.progress);
+          const cam = cameraRect({ width: bigW, height: bigH }, mapped, eased);
+          outCtx.drawImage(
+            zoomPresenter.surface,
+            cam.x,
+            cam.y,
+            cam.width,
+            cam.height,
+            0,
+            0,
+            canvasW,
+            canvasH,
+          );
+          yield Buffer.from(outCanvas.data());
+          previousWindowId = at.window.id;
+          continue;
+        }
+
+        compositor.drawFullscreen(primary.surface);
         if (at.window.inset) {
           const inset = await surfaceFor(at.window.inset.session, at.wallMs);
           compositor.drawInset(inset.surface, at.window.inset, resolvedStyle.radius);

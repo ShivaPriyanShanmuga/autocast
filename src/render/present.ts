@@ -20,6 +20,11 @@ export class Presenter {
     this.ctx = this.canvas.getContext('2d');
   }
 
+  /** The presented frame, for a camera to view. */
+  get surface(): Canvas {
+    return this.canvas;
+  }
+
   /** True when this presenter would leave a frame unchanged. */
   get isPlain(): boolean {
     return (
@@ -34,8 +39,25 @@ export class Presenter {
     // A demo without style: must be byte-identical to before this phase,
     // so do not even copy it through our canvas.
     if (this.isPlain) return Buffer.from(source.data());
+    this.presentToSurface(source);
+    return Buffer.from(this.canvas.data());
+  }
 
+  /**
+   * Compose the presentation frame onto our own canvas.
+   *
+   * Separate from `present` so a camera can be applied to the FINISHED
+   * frame — background and window included — rather than to the content
+   * inside the window while the frame stays pinned.
+   */
+  presentToSurface(source: Canvas): void {
     const { ctx, width, height, style } = this;
+
+    if (this.isPlain) {
+      ctx.clearRect(0, 0, width, height);
+      ctx.drawImage(source, 0, 0, width, height);
+      return;
+    }
 
     if (style.background.kind === 'gradient') {
       const g = ctx.createLinearGradient(0, 0, width, height);
@@ -69,8 +91,17 @@ export class Presenter {
     ctx.clip();
     ctx.drawImage(source, pad, pad, w, h);
     ctx.restore();
+  }
 
-    return Buffer.from(this.canvas.data());
+  /** Where the source content sits inside the presented frame. */
+  contentRect(): { x: number; y: number; width: number; height: number } {
+    const pad = this.isPlain ? 0 : this.style.padding;
+    return {
+      x: pad,
+      y: pad,
+      width: Math.max(1, this.width - pad * 2),
+      height: Math.max(1, this.height - pad * 2),
+    };
   }
 }
 
