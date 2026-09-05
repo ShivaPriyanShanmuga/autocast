@@ -4,7 +4,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createCanvas } from '@napi-rs/canvas';
 import { DEFAULT_THEME } from './theme.js';
-import { BrowserFrameRenderer } from './browser-frame.js';
+import { BrowserFrameRenderer, composeBrowserWithCursor } from './browser-frame.js';
+import type { CursorKeyframe } from './cursor.js';
 
 const dir = mkdtempSync(join(tmpdir(), 'autocast-bf-'));
 afterAll(() => rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }));
@@ -97,5 +98,59 @@ describe('BrowserFrameRenderer', () => {
     const drawn = r.readPixels();
 
     expect(Buffer.compare(plain, drawn)).not.toBe(0);
+  });
+});
+
+describe('composeBrowserWithCursor', () => {
+  const geometry = { width: 640, height: 360 };
+  const pointers: CursorKeyframe[] = [
+    { tSec: 0, at: { x: 100, y: 80 } },
+    { tSec: 1, at: { x: 300, y: 200 }, click: true },
+  ];
+
+  it('draws the cursor onto the composed frame', async () => {
+    const path = jpeg('cursor-base.jpg', '#ffffff');
+
+    const bare = new BrowserFrameRenderer(geometry, DEFAULT_THEME);
+    const without = await bare.render(path);
+
+    const withCursor = new BrowserFrameRenderer(geometry, DEFAULT_THEME);
+    await composeBrowserWithCursor(withCursor, path, pointers, 1.0);
+
+    // This is the regression guard: phase 3a's composed path called
+    // compose() directly and silently dropped the cursor.
+    expect(Buffer.compare(without, withCursor.readPixels())).not.toBe(0);
+  });
+
+  it('draws nothing extra before the first keyframe', async () => {
+    const path = jpeg('cursor-early.jpg', '#ffffff');
+
+    const bare = new BrowserFrameRenderer(geometry, DEFAULT_THEME);
+    const without = await bare.render(path);
+
+    const early = new BrowserFrameRenderer(geometry, DEFAULT_THEME);
+    await composeBrowserWithCursor(early, path, pointers, -0.5);
+
+    expect(Buffer.compare(without, early.readPixels())).toBe(0);
+  });
+
+  it('moves the cursor as time advances', async () => {
+    const path = jpeg('cursor-move.jpg', '#ffffff');
+
+    const a = new BrowserFrameRenderer(geometry, DEFAULT_THEME);
+    await composeBrowserWithCursor(a, path, pointers, 0.1);
+    const early = a.readPixels();
+
+    const b = new BrowserFrameRenderer(geometry, DEFAULT_THEME);
+    await composeBrowserWithCursor(b, path, pointers, 1.0);
+
+    expect(Buffer.compare(early, b.readPixels())).not.toBe(0);
+  });
+
+  it('tolerates an empty pointer track', async () => {
+    const path = jpeg('cursor-none.jpg', '#ffffff');
+    const r = new BrowserFrameRenderer(geometry, DEFAULT_THEME);
+    await expect(composeBrowserWithCursor(r, path, [], 1.0)).resolves.toBeUndefined();
+    expect(r.readPixels().length).toBe(geometry.width * geometry.height * 4);
   });
 });

@@ -1,7 +1,7 @@
 import type { DemoScript } from '../schema/demo.js';
 import type { CastLog } from '../backends/terminal/cast.js';
-import { BrowserFrameRenderer } from '../render/browser-frame.js';
-import { cursorAt, drawCursor } from '../render/cursor.js';
+import { BrowserFrameRenderer, composeBrowserWithCursor } from '../render/browser-frame.js';
+import type { CursorKeyframe } from '../render/cursor.js';
 import { encodeFrames } from '../render/encoder.js';
 import { browserFrameCount, resampleManifest } from '../render/resample.js';
 import { CastPlayer } from '../render/cast-player.js';
@@ -72,12 +72,20 @@ export async function renderDemo(
 
     const browsers = new Map<string, BrowserFrameRenderer>();
     const browserTicks = new Map<string, ReturnType<typeof resampleManifest>>();
+    const browserPointers = new Map<string, CursorKeyframe[]>();
     for (const [id, manifest] of Object.entries(capture.frames)) {
       browsers.set(
         id,
         new BrowserFrameRenderer({ width: canvasW, height: canvasH }, DEFAULT_THEME),
       );
       browserTicks.set(id, resampleManifest(manifest, { fps, tailMs: 0 }));
+      // Pointer keyframes are absolute unix seconds; rebase onto the
+      // session's own timeline once, not per frame.
+      const firstSec = manifest.frames[0]?.tSec ?? 0;
+      browserPointers.set(
+        id,
+        (capture.pointers[id] ?? []).map((k) => ({ ...k, tSec: k.tSec - firstSec })),
+      );
     }
 
     /** Draw one session's state at a wall-clock instant onto its canvas. */
@@ -107,7 +115,12 @@ export async function renderDemo(
         if (tick.tSec <= tSec) chosen = tick;
         else break;
       }
-      await browser.compose(chosen?.source?.path ?? null);
+      await composeBrowserWithCursor(
+        browser,
+        chosen?.source?.path ?? null,
+        browserPointers.get(sessionId) ?? [],
+        tSec,
+      );
       return browser.surface;
     };
 
@@ -168,11 +181,12 @@ export async function renderDemo(
 
     async function* browserFrames(): AsyncGenerator<Buffer> {
       for (const tick of ticks) {
-        await browserRenderer.compose(tick.source?.path ?? null);
-        const cursor = cursorAt(pointers, tick.tSec);
-        if (cursor) {
-          drawCursor(browserRenderer.context, cursor.at, { clickAge: cursor.clickAge });
-        }
+        await composeBrowserWithCursor(
+          browserRenderer,
+          tick.source?.path ?? null,
+          pointers,
+          tick.tSec,
+        );
         yield browserRenderer.readPixels();
       }
     }
