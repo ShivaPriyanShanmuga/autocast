@@ -150,6 +150,7 @@ const Style = z
         on: z.enum(['click', 'focus']).optional(),
         scale: z.number().positive().optional(),
         ease: z.enum(['spring', 'cubic']).optional(),
+        duration: Duration.optional(),
       })
       .strict()
       .optional(),

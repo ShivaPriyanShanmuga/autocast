@@ -29,6 +29,12 @@ export interface SceneWindow {
   primary: string;
   inset: InsetSpec | null;
   /**
+   * `focus:` for a scene whose primary is a terminal. Terminal zoom is
+   * compositor-side (we render the grid offline), so unlike browser zoom
+   * it is applied at render time and is losslessly re-renderable.
+   */
+  terminalFocus: string | null;
+  /**
    * Piecewise map from output time to wall time. Active stretches run
    * 1:1; idle stretches are compressed. Always monotonic, because a
    * backwards step would make CastPlayer throw.
@@ -73,6 +79,9 @@ export const SCENE_TAIL_SEC = 0.9;
  */
 export const SCENE_HEAD_SEC = 0.35;
 
+/** Which sessions are terminals, so a focus can be routed correctly. */
+export type TerminalSessions = ReadonlySet<string>;
+
 export interface PlanOptions {
   minSceneSec?: number;
   sceneTailSec?: number;
@@ -80,6 +89,7 @@ export interface PlanOptions {
   /** Idle spans per scene id, in absolute wall-clock ms. */
   idleByScene?: Record<string, IdleSpan[]>;
   maxSpeedup?: number;
+  terminalSessions?: TerminalSessions;
 }
 
 export function planComposition(
@@ -184,6 +194,10 @@ export function planComposition(
       primary,
       inset,
       segments,
+      terminalFocus:
+        opts.terminalSessions?.has(primary) && typeof scene.focus === 'string'
+          ? scene.focus
+          : null,
     });
     cursor += durationSec;
   }
@@ -225,4 +239,19 @@ export function wallClockAt(
 
   // Past the last segment: the tail. Freeze on the captured end state.
   return { window, wallMs: window.wallEndMs };
+}
+
+/**
+ * How far into a scene's uncompressed tail an output time sits, 0..1.
+ *
+ * Terminal zoom animates across the tail: the tail exists precisely so a
+ * scene's result can be read, which is exactly when a zoom onto that
+ * result belongs.
+ */
+export function tailProgress(window: SceneWindow, outSec: number): number {
+  const lastSegment = window.segments[window.segments.length - 1];
+  const bodyEnd = lastSegment?.outEndSec ?? window.outStartSec;
+  const tail = window.outEndSec - bodyEnd;
+  if (tail <= 0) return outSec >= bodyEnd ? 1 : 0;
+  return Math.max(0, Math.min(1, (outSec - bodyEnd) / tail));
 }

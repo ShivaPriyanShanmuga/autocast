@@ -59,3 +59,10 @@ scenes:
       inset: { session: api, corner: bottom-right, scale: 0.4 }
     assert:
       - stdout_matches: /POST \/api\/orders 201/
+
+  - id: proof
+    use: api
+    narrate: "There it is, in the server's own log."
+    focus: /POST \/api\/orders 201/
+    assert:
+      - stdout_matches: /POST \/api\/orders 201/

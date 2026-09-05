@@ -7,6 +7,7 @@ import {
   MIN_SCENE_SEC,
   SCENE_TAIL_SEC,
   SCENE_HEAD_SEC,
+  tailProgress,
 } from './composition.js';
 
 const script = {
@@ -288,5 +289,61 @@ describe('scene head', () => {
     const late = wallClockAt(plan, order.outStartSec + SCENE_HEAD_SEC - 0.02)!;
     // This is the reported bug: compression racing ahead during the fade.
     expect(late.wallMs).toBeCloseTo(early.wallMs, 0);
+  });
+});
+
+describe('terminal focus', () => {
+  const terminalSessions = new Set(['api']);
+
+  it('carries a focus pattern when the primary is a terminal', () => {
+    const withFocus = {
+      ...script,
+      scenes: [{ id: 'boot', use: 'api', focus: '/POST/' }],
+    } as unknown as typeof script;
+    const plan = planComposition(withFocus, [captures[0]!], { terminalSessions });
+    expect(plan.windows[0]!.terminalFocus).toBe('/POST/');
+  });
+
+  it('ignores focus when the primary is a browser', () => {
+    // Browser zoom is applied in the browser at capture time; routing it
+    // through the compositor as well would double-apply it.
+    const withFocus = {
+      ...script,
+      scenes: [{ id: 'order', use: 'web', focus: '#submit' }],
+    } as unknown as typeof script;
+    const plan = planComposition(withFocus, [captures[1]!], { terminalSessions });
+    expect(plan.windows[0]!.terminalFocus).toBeNull();
+  });
+
+  it('is null when no focus is given', () => {
+    const plan = planComposition(script, captures, { terminalSessions });
+    expect(plan.windows[0]!.terminalFocus).toBeNull();
+  });
+});
+
+describe('tailProgress', () => {
+  const plan = planComposition(script, captures);
+
+  it('is 0 during the scene body', () => {
+    const boot = plan.windows[0]!;
+    expect(tailProgress(boot, boot.outStartSec + 0.1)).toBe(0);
+  });
+
+  it('reaches 1 by the end of the tail', () => {
+    const boot = plan.windows[0]!;
+    expect(tailProgress(boot, boot.outEndSec)).toBeCloseTo(1, 3);
+  });
+
+  it('rises through the tail', () => {
+    const boot = plan.windows[0]!;
+    const early = tailProgress(boot, boot.outEndSec - 0.7);
+    const late = tailProgress(boot, boot.outEndSec - 0.2);
+    expect(late).toBeGreaterThan(early);
+  });
+
+  it('stays within 0..1', () => {
+    const boot = plan.windows[0]!;
+    expect(tailProgress(boot, boot.outStartSec - 5)).toBe(0);
+    expect(tailProgress(boot, boot.outEndSec + 5)).toBe(1);
   });
 });

@@ -134,7 +134,7 @@ describe('renderDemo with mixed sessions', () => {
     const report = await renderDemo(script, { outputPath: out });
 
     expect(report.ok, JSON.stringify(report.scenes, null, 2)).toBe(true);
-    expect(report.scenes.map((s) => s.id)).toEqual(['boot', 'order', 'logs']);
+    expect(report.scenes.map((s) => s.id)).toEqual(script.scenes.map((s) => s.id));
     expect(existsSync(out)).toBe(true);
 
     const probe = await probeVideo(out);
@@ -158,7 +158,7 @@ describe('pacing', () => {
     const report = await renderDemo(script, { outputPath: out });
 
     expect(report.ok, JSON.stringify(report.scenes, null, 2)).toBe(true);
-    expect(report.scenes.map((s) => s.id)).toEqual(['boot', 'order', 'logs']);
+    expect(report.scenes.map((s) => s.id)).toEqual(script.scenes.map((s) => s.id));
     expect(existsSync(out)).toBe(true);
 
     const probe = await probeVideo(out);
