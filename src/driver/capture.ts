@@ -28,6 +28,15 @@ export interface CaptureArtifact {
   frames: Record<string, FrameManifest>;
   pointers: Record<string, CursorKeyframe[]>;
   zooms: Record<string, ZoomKeyframe[]>;
+  /**
+   * Where a browser scene wants to zoom, in CSS pixels, keyed by scene id.
+   *
+   * Recorded rather than applied: browser zoom is now a compositor camera
+   * over the finished frame, so the window and background scale with the
+   * content. Zooming inside the browser could only ever scale the page,
+   * leaving the frame around it pinned.
+   */
+  zoomBoxes: Record<string, { x: number; y: number; width: number; height: number }>;
   ok: boolean;
 }
 
@@ -73,6 +82,7 @@ export async function captureDemo(
   const frames: Record<string, FrameManifest> = {};
   const pointers: Record<string, CursorKeyframe[]> = {};
   const zooms: Record<string, ZoomKeyframe[]> = {};
+  const zoomBoxes: Record<string, { x: number; y: number; width: number; height: number }> = {};
   const scenes: SceneCapture[] = [];
   let abortedAt: string | null = null;
 
@@ -156,12 +166,8 @@ export async function captureDemo(
             });
           }
         } else {
-          const zoomDuration = script.style?.zoom?.duration;
-          await entry.session.animateZoom(script.style?.zoom?.scale ?? 1.8, {
-            ...(script.style?.zoom?.ease ? { ease: script.style.zoom.ease } : {}),
-            ...(zoomDuration === undefined ? {} : { durationMs: toMs(zoomDuration, 800) }),
-          });
-          await new Promise((r) => setTimeout(r, settleMs));
+          // Record where to frame; the compositor does the zooming.
+          zoomBoxes[scene.id] = box;
         }
       }
 
@@ -198,7 +204,16 @@ export async function captureDemo(
         zooms[entry.id] = entry.session.zoomTrack();
       }
     }
-    return { scenes, casts, frames, pointers, zooms, abortedAt, ok: scenes.every((s) => s.ok) };
+    return {
+      scenes,
+      casts,
+      frames,
+      pointers,
+      zooms,
+      zoomBoxes,
+      abortedAt,
+      ok: scenes.every((s) => s.ok),
+    };
   } finally {
     // Reverse declaration order, and never let one failure strand another.
     for (const entry of [...sessions].reverse()) {

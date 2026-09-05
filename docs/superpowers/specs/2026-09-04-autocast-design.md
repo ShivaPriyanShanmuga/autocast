@@ -175,17 +175,37 @@ the CSS viewport size regardless of `deviceScaleFactor` 1, 2 or 3, and ignores
 it is far too slow to drive at frame rate. So the browser viewport is set to
 the output canvas size and captured 1:1.
 
-**Zoom is performed in the browser, not the compositor.** `focus:` drives CDP
-`Emulation.setPageScaleFactor`, which makes the browser re-rasterise at the
-zoomed scale, so zoomed text is natively sharp at any magnification rather than
-an upscaled crop. Pinch-zoom emulation does not reflow layout, so the page
-under test is not disturbed.
+**Zoom is a compositor camera, for both backends.** *(Overturned twice; this is
+the settled position.)*
 
-This is strictly better than the "capture at 2x, crop to zoom" approach it
-replaces, which was bounded at 2x and soft beyond it. The cost is that browser
-zoom is baked in at capture time and cannot be re-timed offline, unlike the
-terminal's. Animating a zoom means stepping the scale factor during capture,
-which yields natively rendered motion.
+The first version cropped a 2x capture, which the frame-size finding above
+killed. The second used CDP `Emulation.setPageScaleFactor` to re-rasterise the
+page in the browser — natively sharp, and wrong for two reasons that only
+showed up on screen:
+
+1. **It scales the page, not the screen.** The presentation frame — gradient
+   background, padding, rounded window — is drawn by the compositor *around*
+   the captured frame. Scaling inside the browser grows the content while the
+   window it sits in stays exactly where it was, so a "zoom" leaves a band of
+   background pinned at the edge. That is not what zooming into a screen looks
+   like.
+2. **Its smoothness is capped by the screencast.** The capture is
+   change-driven; a scale step only becomes a frame when Chromium repaints.
+   The camera moves once per *output* frame regardless.
+
+So `focus:` now records a rectangle and the compositor moves a camera over the
+finished frame. `Emulation.setPageScaleFactor` is still on the session API but
+capture no longer calls it.
+
+The cost, and it is real: the camera magnifies a viewport-sized capture, so
+browser text softens by the zoom factor. There is no way around this without a
+larger CSS viewport. A spike confirmed `Emulation.setDeviceMetricsOverride` at
+`deviceScaleFactor` 2 and 3 still returns frames at the CSS viewport size — the
+same finding as above, from the other direction. Supersampling the browser
+means capturing at a viewport larger than the canvas and downscaling, which
+changes page layout, so it is an author's choice and not a default. The
+terminal has no such cost: it is rasterised offline at the zoom factor, so its
+glyphs are sharp at any magnification.
 
 The terminal is exempt from all of this — it is rendered offline at whatever
 resolution the compositor asks for, so terminal zoom is always pixel-exact.
@@ -464,10 +484,9 @@ re-renders without re-running anything.
 - **Zoom** — `focus: <selector>` for explicit framing, and `style.zoom.auto`
   for automatic zoom on click targets. On a terminal, `focus:` is a PATTERN
   matched against the character grid rather than a selector, and the zoom is
-  lossless because we rasterise the grid ourselves. On the browser backend this is applied
-  in-browser via `Emulation.setPageScaleFactor` (section 4.5), so it is the one
-  effect here that is NOT compositor-side; on the terminal it is a pure
-  re-render. **We frame better than a screen recorder can.** Screen Studio and its peers infer intent from pixels: they
+  lossless because we rasterise the grid ourselves. Both backends drive the same camera (section
+  4.5): a terminal pattern resolves against the character grid, a selector
+  against the DOM box, and each reduces to a rectangle on a surface. **We frame better than a screen recorder can.** Screen Studio and its peers infer intent from pixels: they
   see a click at (x, y) and guess a zoom factor. We know the semantic action
   and the element's exact bounding box from the DOM, so we frame to fit the
   element plus margin, and we know precisely when the interaction ends and the
@@ -476,13 +495,14 @@ re-renders without re-running anything.
 - **Motion blur** — available for cursor travel only, approximated by drawing
   recent positions at decaying alpha.
 
-  The original plan here was accumulation blur: composite camera moves at 4x
-  the frame rate and box-average down. That assumed every camera move is
-  compositor-side. It is not — section 4.5 puts browser zoom *in the browser*,
-  so a zoom is baked into captured frames and there is nothing to re-render at
-  4x. Blur is therefore possible for the cursor, which the compositor draws,
-  and not for zoom. Terminal zoom would be eligible, since the terminal is
-  rendered offline, but terminals do not currently zoom.
+  The original plan was accumulation blur: composite camera moves at 4x the
+  frame rate and box-average down. Now that zoom is a compositor camera for
+  both backends (section 4.5), that is once again possible in principle — the
+  camera rect is a pure function of output time, so it can be sampled at any
+  rate. It is not implemented: a 4x sample of the whole composed frame costs
+  four times the compositing work per frame, and the camera is slow enough
+  (0.9s spring across a scene tail) that there is little blur to render. Left
+  as a knob, not a default.
 - **Presentation frame** — optional gradient/solid background with padding,
   rounded window corners and a drop shadow (`style.background`,
   `style.window`). Pure compositor layer over the normalized canvas.

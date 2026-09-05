@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { cameraRect, cellRectToPixels } from './camera.js';
+import { browserRectToPixels, cameraRect, cellRectToPixels } from './camera.js';
 import type { ScreenState } from './screen.js';
 
 const surface = { width: 2560, height: 1440 };
@@ -79,5 +79,93 @@ describe('cellRectToPixels', () => {
     const r = cellRectToPixels(geometry, screen, { col: 79, row: 23, width: 1, height: 1 });
     expect(r.x + r.width).toBeLessThanOrEqual(geometry.width);
     expect(r.y + r.height).toBeLessThanOrEqual(geometry.height);
+  });
+});
+
+describe('browserRectToPixels', () => {
+  it('maps a CSS box onto a surface of the same aspect ratio', () => {
+    const r = browserRectToPixels(
+      { width: 1280, height: 720 },
+      { width: 640, height: 360 },
+      { x: 100, y: 50, width: 200, height: 80 },
+    );
+    expect(r).toEqual({ x: 200, y: 100, width: 400, height: 160 });
+  });
+
+  it('accounts for the letterbox when the aspect ratios differ', () => {
+    // A 640x360 page fit into a 400x400 surface scales by 0.625 and sits
+    // 87.5px down. The renderer centres it, so the map must too.
+    const r = browserRectToPixels(
+      { width: 400, height: 400 },
+      { width: 640, height: 360 },
+      { x: 0, y: 0, width: 64, height: 36 },
+    );
+    expect(r.x).toBeCloseTo(0, 5);
+    expect(r.y).toBeCloseTo(87.5, 5);
+    expect(r.width).toBeCloseTo(40, 5);
+    expect(r.height).toBeCloseTo(22.5, 5);
+  });
+
+  it('scales with a supersampled surface, so the camera sees real pixels', () => {
+    const small = browserRectToPixels(
+      { width: 1280, height: 720 },
+      { width: 1280, height: 720 },
+      { x: 10, y: 20, width: 30, height: 40 },
+    );
+    const big = browserRectToPixels(
+      { width: 2560, height: 1440 },
+      { width: 1280, height: 720 },
+      { x: 10, y: 20, width: 30, height: 40 },
+    );
+    expect(big.x).toBeCloseTo(small.x * 2, 5);
+    expect(big.width).toBeCloseTo(small.width * 2, 5);
+  });
+});
+
+describe('cameraRect within content bounds', () => {
+  // The presented frame is background + padding + window. Zooming should
+  // move INTO the window, not magnify the frame around it: at 1.7x a 56px
+  // padding band becomes a 95px band, which reads as a mistake.
+  const surface = { width: 2176, height: 1224 };
+  const content = { x: 95, y: 95, width: 1986, height: 1034 };
+
+  it('keeps the whole surface in view at zoom 1, bounds or not', () => {
+    const r = cameraRect(surface, null, 1, content);
+    expect(r).toEqual({ x: 0, y: 0, width: 2176, height: 1224 });
+  });
+
+  it('stays entirely inside the content once zoomed in', () => {
+    const focus = { x: 200, y: 180, width: 300, height: 40 };
+    const r = cameraRect(surface, focus, 1.7, content);
+    expect(r.x).toBeGreaterThanOrEqual(content.x);
+    expect(r.y).toBeGreaterThanOrEqual(content.y);
+    expect(r.x + r.width).toBeLessThanOrEqual(content.x + content.width + 1e-6);
+    expect(r.y + r.height).toBeLessThanOrEqual(content.y + content.height + 1e-6);
+  });
+
+  it('would have shown background without bounds', () => {
+    // Guards the fix rather than the framework: the same focus clamps to
+    // x=0 against the bare surface, which is the padding band.
+    const focus = { x: 200, y: 180, width: 300, height: 40 };
+    expect(cameraRect(surface, focus, 1.7).x).toBe(0);
+  });
+
+  it('moves continuously as the zoom ramps, with no jump at the crossover', () => {
+    // The clamp changes character when the camera first fits inside the
+    // content. If that switch were a step, the zoom would visibly snap.
+    const focus = { x: 200, y: 180, width: 300, height: 40 };
+    let prev = cameraRect(surface, focus, 1, content);
+    for (let z = 1.005; z <= 2; z += 0.005) {
+      const r = cameraRect(surface, focus, z, content);
+      expect(Math.abs(r.x - prev.x)).toBeLessThan(12);
+      expect(Math.abs(r.y - prev.y)).toBeLessThan(12);
+      prev = r;
+    }
+  });
+
+  it('centres on the content when the camera is too wide to fit inside it', () => {
+    const r = cameraRect(surface, { x: 0, y: 0, width: 10, height: 10 }, 1.02, content);
+    const width = surface.width / 1.02;
+    expect(r.x).toBeCloseTo(Math.max(0, content.x + (content.width - width) / 2), 5);
   });
 });

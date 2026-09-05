@@ -292,32 +292,53 @@ describe('scene head', () => {
   });
 });
 
-describe('terminal focus', () => {
+describe('scene focus', () => {
   const terminalSessions = new Set(['api']);
 
-  it('carries a focus pattern when the primary is a terminal', () => {
+  it('carries a terminal focus pattern when the primary is a terminal', () => {
     const withFocus = {
       ...script,
       scenes: [{ id: 'boot', use: 'api', focus: '/POST/' }],
     } as unknown as typeof script;
     const plan = planComposition(withFocus, [captures[0]!], { terminalSessions });
-    expect(plan.windows[0]!.terminalFocus).toBe('/POST/');
+    expect(plan.windows[0]!.focus).toEqual({ kind: 'terminal', pattern: '/POST/' });
   });
 
-  it('ignores focus when the primary is a browser', () => {
-    // Browser zoom is applied in the browser at capture time; routing it
-    // through the compositor as well would double-apply it.
+  it('carries the measured box when the primary is a browser', () => {
+    // A browser focus is a rectangle, not a pattern: the DOM already told
+    // us exactly where the element is. Both kinds end up driving the same
+    // camera, which is what keeps web and non-web on one mechanism.
     const withFocus = {
       ...script,
       scenes: [{ id: 'order', use: 'web', focus: '#submit' }],
     } as unknown as typeof script;
-    const plan = planComposition(withFocus, [captures[1]!], { terminalSessions });
-    expect(plan.windows[0]!.terminalFocus).toBeNull();
+    const box = { x: 10, y: 20, width: 30, height: 40 };
+    const plan = planComposition(withFocus, [captures[1]!], {
+      terminalSessions,
+      browserFocusByScene: { order: box },
+    });
+    expect(plan.windows[0]!.focus).toEqual({ kind: 'browser', box });
+  });
+
+  it('ignores a browser box when some other session is the one on screen', () => {
+    // The box was measured on the acting session. If the layout puts a
+    // different session fullscreen, those coordinates mean nothing.
+    const withLayout = {
+      ...script,
+      scenes: [
+        { id: 'order', use: 'web', layout: { primary: 'api' } },
+      ],
+    } as unknown as typeof script;
+    const plan = planComposition(withLayout, [captures[1]!], {
+      terminalSessions,
+      browserFocusByScene: { order: { x: 1, y: 2, width: 3, height: 4 } },
+    });
+    expect(plan.windows[0]!.focus).toBeNull();
   });
 
   it('is null when no focus is given', () => {
     const plan = planComposition(script, captures, { terminalSessions });
-    expect(plan.windows[0]!.terminalFocus).toBeNull();
+    expect(plan.windows[0]!.focus).toBeNull();
   });
 });
 
