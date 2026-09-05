@@ -16,6 +16,21 @@ export const IDLE_THRESHOLD_MS = 700;
 /** Spec section 7.1 lever 1: a long wait becomes brief, never instant. */
 export const MAX_SPEEDUP = 8;
 
+/**
+ * The idle threshold for a script, given its deliberate settle pause.
+ *
+ * A settle is intentional pacing, not dead air. With a fixed 700ms
+ * threshold and a 750ms settle, every pause the script deliberately
+ * asked for was classified as idle and compressed 8x — silently undoing
+ * the pacing. Compression must never remove timing the author chose.
+ *
+ * The 1.5x margin keeps a settle comfortably clear of the threshold even
+ * when it runs slightly long under load.
+ */
+export function idleThresholdFor(settleMs: number): number {
+  return Math.max(IDLE_THRESHOLD_MS, settleMs * 1.5);
+}
+
 function gapsToSpans(timesMs: number[], thresholdMs: number): IdleSpan[] {
   const spans: IdleSpan[] = [];
   for (let i = 1; i < timesMs.length; i++) {

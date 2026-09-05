@@ -7,7 +7,12 @@ import { browserFrameCount, resampleManifest } from '../render/resample.js';
 import { CastPlayer } from '../render/cast-player.js';
 import { planComposition, wallClockAt } from '../render/composition.js';
 import { LayoutCompositor, TRANSITION_SEC } from '../render/layout.js';
-import { castIdleSpans, manifestIdleSpans, type IdleSpan } from '../render/idle.js';
+import {
+  castIdleSpans,
+  manifestIdleSpans,
+  idleThresholdFor,
+  type IdleSpan,
+} from '../render/idle.js';
 import { fitGeometry, FrameRenderer } from '../render/frame.js';
 import { frameCount, replayCast } from '../render/replay.js';
 import { DEFAULT_THEME } from '../render/theme.js';
@@ -23,6 +28,14 @@ export interface RenderReport {
   }>;
   frames: number;
   durationSec: number;
+}
+
+function toMs(d: number | string | undefined, fallback: number): number {
+  if (d === undefined) return fallback;
+  if (typeof d === 'number') return d;
+  const m = /^(\d+(?:\.\d+)?)(ms|s)$/.exec(d);
+  if (!m) return fallback;
+  return m[2] === 's' ? Number(m[1]) * 1000 : Number(m[1]);
 }
 
 export interface RenderOptions {
@@ -58,12 +71,18 @@ export async function renderDemo(
   if (needsComposition) {
     // Detect idle on the session the viewer is actually watching — a
     // scene's `primary`, which is not always its acting session.
+    // Only compress waits longer than the script's own settle: a settle
+    // is deliberate pacing, and compressing it undoes what the author asked
+    // for.
+    const settleMs = toMs(script.defaults?.settle, 750);
+    const idleThreshold = idleThresholdFor(settleMs);
+
     const idleBySession: Record<string, IdleSpan[]> = {};
     for (const [id, cast] of Object.entries(capture.casts)) {
-      idleBySession[id] = castIdleSpans(cast);
+      idleBySession[id] = castIdleSpans(cast, idleThreshold);
     }
     for (const [id, manifest] of Object.entries(capture.frames)) {
-      idleBySession[id] = manifestIdleSpans(manifest);
+      idleBySession[id] = manifestIdleSpans(manifest, idleThreshold);
     }
     const idleByScene: Record<string, IdleSpan[]> = {};
     for (const sc of script.scenes) {
