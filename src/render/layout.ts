@@ -12,7 +12,7 @@ export interface Rect {
 const DEFAULT_MARGIN = 24;
 
 /** How long a scene cut takes to blend. */
-export const TRANSITION_SEC = 0.35;
+export const TRANSITION_SEC = 0.5;
 
 /** Where an inset sits, keeping the canvas aspect ratio. */
 export function insetRect(

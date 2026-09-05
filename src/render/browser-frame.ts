@@ -20,6 +20,13 @@ export interface BrowserFrameGeometry {
   height: number;
 }
 
+/** How the page was fitted onto the surface, in surface pixels. */
+export interface PageFit {
+  scale: number;
+  offsetX: number;
+  offsetY: number;
+}
+
 /**
  * Draws captured browser JPEGs onto the shared canvas.
  *
@@ -34,6 +41,7 @@ export class BrowserFrameRenderer {
   private cachedImage: Image | null = null;
   /** Test-visible: how many times a JPEG was actually decoded. */
   decodeCount = 0;
+  private fit: PageFit = { scale: 1, offsetX: 0, offsetY: 0 };
 
   constructor(
     private readonly geometry: BrowserFrameGeometry,
@@ -51,6 +59,20 @@ export class BrowserFrameRenderer {
   /** The composed frame, for a compositor to draw from. */
   get surface(): Canvas {
     return this.canvas;
+  }
+
+  /**
+   * How the last composed page maps onto this surface.
+   *
+   * Anything drawn in page coordinates — the cursor, and a focus box —
+   * has to go through this, or it lands somewhere the page is not. It
+   * matters now that a surface can be larger than the viewport: the
+   * compositor supersamples the browser so a zoom camera has real pixels
+   * to move over, and a cursor drawn in raw CSS pixels on a 1.7x surface
+   * sits well up and left of the thing it is pointing at.
+   */
+  get pageFit(): PageFit {
+    return this.fit;
   }
 
   private async imageFor(path: string): Promise<Image | null> {
@@ -82,7 +104,12 @@ export class BrowserFrameRenderer {
       const scale = Math.min(geometry.width / image.width, geometry.height / image.height);
       const w = image.width * scale;
       const h = image.height * scale;
-      ctx.drawImage(image, (geometry.width - w) / 2, (geometry.height - h) / 2, w, h);
+      const offsetX = (geometry.width - w) / 2;
+      const offsetY = (geometry.height - h) / 2;
+      ctx.drawImage(image, offsetX, offsetY, w, h);
+      // Recorded, not recomputed by the caller: the cursor has to use the
+      // exact fit the page was drawn with.
+      this.fit = { scale, offsetX, offsetY };
     }
   }
 
@@ -121,10 +148,14 @@ export async function composeBrowserWithCursor(
   await renderer.compose(jpegPath);
   const cursor = cursorAt([...pointers], tSec);
   if (!cursor) return;
-  // Keyframes are CSS pixels. Once the page is scaled, the same element
-  // sits somewhere else on screen, so the pointer must scale with it.
-  const scale = scaleAt(zoomTrack, tSec);
-  const scaled = (p: { x: number; y: number }) => ({ x: p.x * scale, y: p.y * scale });
+  // Keyframes are CSS pixels. Two things move them: an in-browser page
+  // scale, and how the page was fitted onto this surface.
+  const fit = renderer.pageFit;
+  const scale = scaleAt(zoomTrack, tSec) * fit.scale;
+  const scaled = (p: { x: number; y: number }) => ({
+    x: fit.offsetX + p.x * scale,
+    y: fit.offsetY + p.y * scale,
+  });
 
   // Sample the same curve slightly in the past; if the cursor is still,
   // these coincide and the trail is invisible.
@@ -137,7 +168,9 @@ export async function composeBrowserWithCursor(
 
   drawCursor(renderer.context, scaled(cursor.at), {
     clickAge: cursor.clickAge,
-    size: 18 * cursorSize,
+    // Scale with the page too, or supersampling shrinks the cursor by
+    // the zoom factor once the camera crops back down.
+    size: 18 * cursorSize * scale,
     trail,
   });
 }

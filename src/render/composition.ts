@@ -2,6 +2,7 @@ import type { Rect } from './camera.js';
 import type { SceneCapture } from '../driver/capture.js';
 import type { DemoScript } from '../schema/demo.js';
 import { clampSpans, MAX_SPEEDUP, type IdleSpan } from './idle.js';
+import { ZOOM_SEC } from './zoom.js';
 
 /** A stretch of output time mapping linearly onto a stretch of wall time. */
 export interface TimeSegment {
@@ -37,6 +38,17 @@ export interface SceneWindow {
    */
   focus: SceneFocus | null;
   /**
+   * When the camera starts moving, on the output timeline. Null when this
+   * window does not zoom.
+   *
+   * The zoom gets its own stretch of time between the body and the tail,
+   * rather than riding the tail. Riding the tail meant the scene cut away
+   * at the instant the camera arrived — so there was never a moment to
+   * read the thing we had zoomed to, and the pull-back was left to the
+   * crossfade, which reads as a jump rather than a camera move.
+   */
+  zoomStartSec: number | null;
+  /**
    * Piecewise map from output time to wall time. Active stretches run
    * 1:1; idle stretches are compressed. Always monotonic, because a
    * backwards step would make CastPlayer throw.
@@ -63,7 +75,7 @@ export interface CompositionPlan {
  * measures zero duration — the flagship's `logs` scene came out at 0.00s
  * in the spike — and without a floor it would flash by in one frame.
  */
-export const MIN_SCENE_SEC = 1.2;
+export const MIN_SCENE_SEC = 2;
 
 /**
  * A beat held on every scene's end state before cutting away.
@@ -74,7 +86,7 @@ export const MIN_SCENE_SEC = 1.2;
  * The tail freezes on the captured end state (see `wallClockAt`), it does
  * not invent footage.
  */
-export const SCENE_TAIL_SEC = 0.9;
+export const SCENE_TAIL_SEC = 1.3;
 
 /**
  * A frozen lead-in at the start of every scene but the first, holding
@@ -88,7 +100,7 @@ export const SCENE_TAIL_SEC = 0.9;
  *
  * MUST equal TRANSITION_SEC in layout.ts — a test asserts it.
  */
-export const SCENE_HEAD_SEC = 0.35;
+export const SCENE_HEAD_SEC = 0.5;
 
 /** Which sessions are terminals, so a focus can be routed correctly. */
 export type TerminalSessions = ReadonlySet<string>;
@@ -181,7 +193,9 @@ export function planComposition(
         wallEndMs,
       });
     }
-    const durationSec = headSec + bodySec + sceneTailSec;
+    const focus = resolveFocus(scene, scene.layout?.primary ?? scene.use, opts);
+    const zoomSec = focus ? ZOOM_SEC : 0;
+    const durationSec = headSec + bodySec + zoomSec + sceneTailSec;
 
     const primary = scene.layout?.primary ?? scene.use;
     if (!sessionIds.has(primary)) {
@@ -207,12 +221,38 @@ export function planComposition(
       primary,
       inset,
       segments,
-      focus: resolveFocus(scene, primary, opts),
+      focus,
+      zoomStartSec: focus ? cursor + headSec + bodySec : null,
     });
     cursor += durationSec;
   }
 
   return { windows, totalSec: cursor };
+}
+
+/**
+ * What a scene frames, if anything.
+ *
+ * A terminal names its target by pattern and a browser by the box the
+ * DOM measured; both are resolved here so no caller has to know which
+ * backend it is looking at.
+ */
+function resolveFocus(
+  scene: DemoScript['scenes'][number],
+  primary: string,
+  opts: PlanOptions,
+): SceneFocus | null {
+  if (opts.terminalSessions?.has(primary)) {
+    return typeof scene.focus === 'string' && scene.focus.length > 0
+      ? { kind: 'terminal', pattern: scene.focus }
+      : null;
+  }
+  // The box was measured on the session whose steps ran. If a layout puts
+  // some other session fullscreen, those coordinates describe a surface
+  // the viewer is not looking at.
+  if (primary !== scene.use) return null;
+  const box = opts.browserFocusByScene?.[scene.id];
+  return box ? { kind: 'browser', box } : null;
 }
 
 /**
@@ -251,35 +291,3 @@ export function wallClockAt(
   return { window, wallMs: window.wallEndMs };
 }
 
-/**
- * How far into a scene's uncompressed tail an output time sits, 0..1.
- *
- * Terminal zoom animates across the tail: the tail exists precisely so a
- * scene's result can be read, which is exactly when a zoom onto that
- * result belongs.
- */
-function resolveFocus(
-  scene: DemoScript['scenes'][number],
-  primary: string,
-  opts: PlanOptions,
-): SceneFocus | null {
-  if (opts.terminalSessions?.has(primary)) {
-    return typeof scene.focus === 'string' && scene.focus.length > 0
-      ? { kind: 'terminal', pattern: scene.focus }
-      : null;
-  }
-  // The box was measured on the session whose steps ran. If a layout puts
-  // some other session fullscreen, those coordinates describe a surface
-  // the viewer is not looking at.
-  if (primary !== scene.use) return null;
-  const box = opts.browserFocusByScene?.[scene.id];
-  return box ? { kind: 'browser', box } : null;
-}
-
-export function tailProgress(window: SceneWindow, outSec: number): number {
-  const lastSegment = window.segments[window.segments.length - 1];
-  const bodyEnd = lastSegment?.outEndSec ?? window.outStartSec;
-  const tail = window.outEndSec - bodyEnd;
-  if (tail <= 0) return outSec >= bodyEnd ? 1 : 0;
-  return Math.max(0, Math.min(1, (outSec - bodyEnd) / tail));
-}

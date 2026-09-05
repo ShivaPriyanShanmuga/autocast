@@ -490,8 +490,23 @@ re-renders without re-running anything.
   see a click at (x, y) and guess a zoom factor. We know the semantic action
   and the element's exact bounding box from the DOM, so we frame to fit the
   element plus margin, and we know precisely when the interaction ends and the
-  camera should pull back. Their version is a heuristic; ours is exact. Scene
-  boundaries also zoom out deliberately, because we know a cut is coming.
+  camera should pull back. Their version is a heuristic; ours is exact.
+
+  **The zoom is an envelope, not a ramp, and it owns its own stretch of the
+  timeline.** In (1.2s, spring), hold (1.4s), out (0.9s, cosine), inserted
+  between a scene's body and its tail. The first version rode the scene tail
+  and finished at full zoom, which got both halves wrong: the scene cut away
+  the instant the camera arrived, so there was never a moment to read what we
+  had zoomed to, and the pull-back was left to the crossfade, which reads as a
+  jump rather than a camera move.
+
+  **The camera scales the plane; the background comes with it.** A version that
+  also clamped the camera inside the window — to keep the presentation
+  background out of frame while zoomed — was wrong on both counts: the extra
+  constraint swung the camera as the zoom ramped, so the move bounced, and
+  framing a target near an edge shoved the view sideways and clipped content.
+  Zooming into a screen shows more of what is near the target, including
+  whatever background is near it. The surface edge is the only limit.
 - **Motion blur** — available for cursor travel only, approximated by drawing
   recent positions at decaying alpha.
 

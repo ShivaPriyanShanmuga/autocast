@@ -7,7 +7,6 @@ import {
   MIN_SCENE_SEC,
   SCENE_TAIL_SEC,
   SCENE_HEAD_SEC,
-  tailProgress,
 } from './composition.js';
 
 const script = {
@@ -150,7 +149,9 @@ describe('wallClockAt', () => {
   });
 
   it('selects the right scene for a later time', () => {
-    const r = wallClockAt(plan, 4.0)!;
+    // Relative to the plan, not a fixed second: the pacing constants are
+    // tuning knobs and a test that pins them tests nothing useful.
+    const r = wallClockAt(plan, plan.windows[1]!.outStartSec + 0.1)!;
     expect(r.window.id).toBe('order');
   });
 
@@ -189,8 +190,11 @@ describe('idle compression', () => {
   it('caps how much an idle span is sped up', () => {
     const compressed = planComposition(script, captures, { idleByScene, maxSpeedup: 4 });
     const boot = compressed.windows[0]!;
-    // 1.1s active + 2s/4 idle + 0.9s tail
-    expect(boot.outEndSec - boot.outStartSec).toBeCloseTo(1.1 + 0.5 + SCENE_TAIL_SEC, 2);
+    // 1.1s active + 2s/4 idle, floored at the minimum body, plus the tail.
+    expect(boot.outEndSec - boot.outStartSec).toBeCloseTo(
+      Math.max(1.1 + 0.5, MIN_SCENE_SEC) + SCENE_TAIL_SEC,
+      2,
+    );
   });
 
   it('leaves the tail uncompressed', () => {
@@ -339,32 +343,5 @@ describe('scene focus', () => {
   it('is null when no focus is given', () => {
     const plan = planComposition(script, captures, { terminalSessions });
     expect(plan.windows[0]!.focus).toBeNull();
-  });
-});
-
-describe('tailProgress', () => {
-  const plan = planComposition(script, captures);
-
-  it('is 0 during the scene body', () => {
-    const boot = plan.windows[0]!;
-    expect(tailProgress(boot, boot.outStartSec + 0.1)).toBe(0);
-  });
-
-  it('reaches 1 by the end of the tail', () => {
-    const boot = plan.windows[0]!;
-    expect(tailProgress(boot, boot.outEndSec)).toBeCloseTo(1, 3);
-  });
-
-  it('rises through the tail', () => {
-    const boot = plan.windows[0]!;
-    const early = tailProgress(boot, boot.outEndSec - 0.7);
-    const late = tailProgress(boot, boot.outEndSec - 0.2);
-    expect(late).toBeGreaterThan(early);
-  });
-
-  it('stays within 0..1', () => {
-    const boot = plan.windows[0]!;
-    expect(tailProgress(boot, boot.outStartSec - 5)).toBe(0);
-    expect(tailProgress(boot, boot.outEndSec + 5)).toBe(1);
   });
 });
