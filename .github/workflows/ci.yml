@@ -24,13 +24,23 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y ffmpeg
       - name: Install ffmpeg (macOS)
         if: runner.os == 'macOS'
-        run: brew install ffmpeg
+        # Idempotent: the runner image may already carry ffmpeg, and a
+        # plain `brew install` on an existing formula exits non-zero.
+        run: brew list ffmpeg >/dev/null 2>&1 || brew install ffmpeg
       - name: Install ffmpeg (Windows)
         if: runner.os == 'Windows'
         run: choco install ffmpeg -y
 
       - run: npm ci
-      - run: npx playwright install --with-deps chromium
+
+      # --with-deps installs system libraries and is only supported on
+      # Ubuntu; on macOS and Windows it fails outright.
+      - name: Install chromium (Linux)
+        if: runner.os == 'Linux'
+        run: npx playwright install --with-deps chromium
+      - name: Install chromium
+        if: runner.os != 'Linux'
+        run: npx playwright install chromium
 
       # doctor first: a missing system dependency should fail with our
       # own actionable message, not as a confusing test error later.
