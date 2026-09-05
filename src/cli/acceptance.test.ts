@@ -191,3 +191,30 @@ describe('Phase 3 exit criteria', () => {
     }
   }, 300000);
 });
+
+describe('macOS install fix', () => {
+  it('ships a postinstall that repairs node-pty spawn-helper', async () => {
+    const { readFileSync, existsSync } = await import('node:fs');
+    const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as {
+      scripts: Record<string, string>;
+      files: string[];
+    };
+
+    // node-pty execs spawn-helper on macOS only, and npm drops its
+    // executable bit. Without this, a macOS install is broken and the
+    // only symptom is a bare "posix_spawnp failed."
+    expect(pkg.scripts.postinstall).toContain('fix-spawn-helper');
+    expect(existsSync('scripts/fix-spawn-helper.mjs')).toBe(true);
+
+    // The script must actually be published, or consumers never run it.
+    expect(pkg.files).toContain('scripts');
+  });
+
+  it('the postinstall script is a no-op off macOS', async () => {
+    const { execFile } = await import('node:child_process');
+    const { promisify } = await import('node:util');
+    const run = promisify(execFile);
+    // Must never fail an install, on any platform.
+    await expect(run(process.execPath, ['scripts/fix-spawn-helper.mjs'])).resolves.toBeTruthy();
+  }, 30000);
+});

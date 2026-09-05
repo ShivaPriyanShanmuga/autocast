@@ -10,13 +10,15 @@
     "autocast": "./dist/cli/index.js"
   },
   "files": [
-    "dist"
+    "dist",
+    "scripts"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "postinstall": "node scripts/fix-spawn-helper.mjs"
   },
   "dependencies": {
     "@fontsource/jetbrains-mono": "^5.3.0",
