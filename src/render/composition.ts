@@ -59,9 +59,24 @@ export const MIN_SCENE_SEC = 1.2;
  */
 export const SCENE_TAIL_SEC = 0.9;
 
+/**
+ * A frozen lead-in at the start of every scene but the first, holding
+ * its opening state while the crossfade from the previous scene runs.
+ *
+ * Without it, idle compression races ahead DURING the fade: a browser
+ * session that has been capturing since before its scene opens with a
+ * large idle gap, which compresses 8x, so a 0.35s fade covered several
+ * seconds of page activity and the two scenes appeared smeared together
+ * rather than handed over.
+ *
+ * MUST equal TRANSITION_SEC in layout.ts — a test asserts it.
+ */
+export const SCENE_HEAD_SEC = 0.35;
+
 export interface PlanOptions {
   minSceneSec?: number;
   sceneTailSec?: number;
+  sceneHeadSec?: number;
   /** Idle spans per scene id, in absolute wall-clock ms. */
   idleByScene?: Record<string, IdleSpan[]>;
   maxSpeedup?: number;
@@ -74,13 +89,14 @@ export function planComposition(
 ): CompositionPlan {
   const minSceneSec = opts.minSceneSec ?? MIN_SCENE_SEC;
   const sceneTailSec = opts.sceneTailSec ?? SCENE_TAIL_SEC;
+  const sceneHeadSec = opts.sceneHeadSec ?? SCENE_HEAD_SEC;
   const sessionIds = new Set(Object.keys(script.sessions));
   const byId = new Map(scenes.map((s) => [s.id, s]));
 
   const windows: SceneWindow[] = [];
   let cursor = 0;
 
-  for (const scene of script.scenes) {
+  for (const [sceneIndex, scene] of script.scenes.entries()) {
     if (!sessionIds.has(scene.use)) {
       throw new Error(`scene "${scene.id}" uses session "${scene.use}", which is not declared`);
     }
@@ -96,6 +112,18 @@ export function planComposition(
     const segments: TimeSegment[] = [];
     let outCursor = cursor;
     let wallCursor = wallStartMs;
+
+    // Nothing fades into the first scene, so it needs no head.
+    const headSec = sceneIndex === 0 ? 0 : sceneHeadSec;
+    if (headSec > 0) {
+      segments.push({
+        outStartSec: outCursor,
+        outEndSec: outCursor + headSec,
+        wallStartMs,
+        wallEndMs: wallStartMs,
+      });
+      outCursor += headSec;
+    }
 
     const pushSegment = (wallEnd: number, divisor: number): void => {
       if (wallEnd <= wallCursor) return;
@@ -116,7 +144,7 @@ export function planComposition(
     }
     pushSegment(wallEndMs, 1); // whatever is left
 
-    const compressedSec = outCursor - cursor;
+    const compressedSec = outCursor - cursor - headSec;
     // The minimum applies to the compressed body. The tail is added on
     // top and is NEVER compressed: it exists so a scene's result can be
     // read, and eating it would undo that.
@@ -125,12 +153,12 @@ export function planComposition(
       // Pad by holding the end state, exactly as the tail does.
       segments.push({
         outStartSec: outCursor,
-        outEndSec: cursor + bodySec,
+        outEndSec: cursor + headSec + bodySec,
         wallStartMs: wallEndMs,
         wallEndMs,
       });
     }
-    const durationSec = bodySec + sceneTailSec;
+    const durationSec = headSec + bodySec + sceneTailSec;
 
     const primary = scene.layout?.primary ?? scene.use;
     if (!sessionIds.has(primary)) {

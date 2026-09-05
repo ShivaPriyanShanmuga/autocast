@@ -1,7 +1,13 @@
 import { describe, it, expect } from 'vitest';
 import type { DemoScript } from '../schema/demo.js';
 import type { SceneCapture } from '../driver/capture.js';
-import { planComposition, wallClockAt, MIN_SCENE_SEC, SCENE_TAIL_SEC } from './composition.js';
+import {
+  planComposition,
+  wallClockAt,
+  MIN_SCENE_SEC,
+  SCENE_TAIL_SEC,
+  SCENE_HEAD_SEC,
+} from './composition.js';
 
 const script = {
   autocast: 1,
@@ -56,11 +62,19 @@ describe('planComposition', () => {
   it('gives a zero-duration scene a minimum hold instead of one frame', () => {
     const plan = planComposition(script, captures);
     const logs = plan.windows[2]!;
-    expect(logs.outEndSec - logs.outStartSec).toBeCloseTo(MIN_SCENE_SEC + SCENE_TAIL_SEC, 3);
+    // `logs` is not the first scene, so it also carries a head.
+    expect(logs.outEndSec - logs.outStartSec).toBeCloseTo(
+      SCENE_HEAD_SEC + MIN_SCENE_SEC + SCENE_TAIL_SEC,
+      3,
+    );
   });
 
   it('honours an overridden minimum', () => {
-    const plan = planComposition(script, captures, { minSceneSec: 3, sceneTailSec: 0 });
+    const plan = planComposition(script, captures, {
+      minSceneSec: 3,
+      sceneTailSec: 0,
+      sceneHeadSec: 0,
+    });
     const logs = plan.windows[2]!;
     expect(logs.outEndSec - logs.outStartSec).toBeCloseTo(3, 3);
   });
@@ -226,5 +240,53 @@ describe('idle compression', () => {
     const idleRate = midB.wallMs - midA.wallMs;
 
     expect(idleRate).toBeGreaterThan(activeRate);
+  });
+});
+
+describe('scene head', () => {
+  it('matches the transition length so a fade never overlaps scene motion', async () => {
+    const { TRANSITION_SEC } = await import('./layout.js');
+    // If these drift apart, a crossfade either overlaps the incoming
+    // scene's action or leaves a static gap after the fade.
+    expect(SCENE_HEAD_SEC).toBeCloseTo(TRANSITION_SEC, 6);
+  });
+
+  it('gives every scene after the first a frozen head', () => {
+    const plan = planComposition(script, captures);
+    const order = plan.windows[1]!;
+    const early = wallClockAt(plan, order.outStartSec + 0.01)!;
+    const stillEarly = wallClockAt(plan, order.outStartSec + SCENE_HEAD_SEC - 0.02)!;
+    expect(early.window.id).toBe('order');
+    // Wall time must not advance while the crossfade is running.
+    expect(stillEarly.wallMs).toBeCloseTo(early.wallMs, 0);
+    expect(early.wallMs).toBeCloseTo(order.wallStartMs, 0);
+  });
+
+  it('starts advancing wall time once the head is over', () => {
+    const plan = planComposition(script, captures);
+    const order = plan.windows[1]!;
+    const atHead = wallClockAt(plan, order.outStartSec + SCENE_HEAD_SEC - 0.02)!;
+    const after = wallClockAt(plan, order.outStartSec + SCENE_HEAD_SEC + 0.3)!;
+    expect(after.wallMs).toBeGreaterThan(atHead.wallMs);
+  });
+
+  it('gives the first scene no head, since nothing fades into it', () => {
+    const plan = planComposition(script, captures);
+    const boot = plan.windows[0]!;
+    const a = wallClockAt(plan, boot.outStartSec + 0.01)!;
+    const b = wallClockAt(plan, boot.outStartSec + 0.2)!;
+    expect(b.wallMs).toBeGreaterThan(a.wallMs);
+  });
+
+  it('holds the head even when the scene is heavily compressed', () => {
+    const plan = planComposition(script, captures, {
+      idleByScene: { order: [{ startMs: BASE + 3100, endMs: BASE + 5120 }] },
+      maxSpeedup: 100,
+    });
+    const order = plan.windows[1]!;
+    const early = wallClockAt(plan, order.outStartSec + 0.01)!;
+    const late = wallClockAt(plan, order.outStartSec + SCENE_HEAD_SEC - 0.02)!;
+    // This is the reported bug: compression racing ahead during the fade.
+    expect(late.wallMs).toBeCloseTo(early.wallMs, 0);
   });
 });
