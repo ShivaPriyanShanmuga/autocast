@@ -8,6 +8,11 @@ defaults:
   typing_speed: 55ms
   settle: 750ms
 
+style:
+  background: { gradient: ["#0f1020", "#1b1b33"], padding: 56 }
+  window: { radius: 14, shadow: true }
+  cursor: { size: 1.4 }
+
 sessions:
   api:
     backend: terminal

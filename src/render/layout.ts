@@ -107,9 +107,12 @@ export class LayoutCompositor {
     this.ctx.drawImage(source, (this.width - w) / 2, (this.height - h) / 2, w, h);
   }
 
-  drawInset(source: Drawable, spec: InsetSpec): void {
+  drawInset(source: Drawable, spec: InsetSpec, radius = 0): void {
     const r = insetRect(this.width, this.height, spec);
     const { ctx } = this;
+    // Match the presentation frame's corner radius, scaled down with the
+    // inset, so the two windows read as the same kind of object.
+    const rad = Math.max(0, Math.min(radius * spec.scale * 1.6, r.width / 2, r.height / 2));
 
     // A shadow and border so the inset reads as a separate window rather
     // than a rectangle of noise pasted over the primary.
@@ -118,12 +121,12 @@ export class LayoutCompositor {
     ctx.shadowBlur = 18;
     ctx.shadowOffsetY = 6;
     ctx.fillStyle = this.theme.background;
-    ctx.fillRect(r.x, r.y, r.width, r.height);
+    roundedRectPath(ctx, r.x, r.y, r.width, r.height, rad);
+    ctx.fill();
     ctx.restore();
 
     ctx.save();
-    ctx.beginPath();
-    ctx.rect(r.x, r.y, r.width, r.height);
+    roundedRectPath(ctx, r.x, r.y, r.width, r.height, rad);
     ctx.clip();
     const scale = Math.min(r.width / source.width, r.height / source.height);
     const w = source.width * scale;
@@ -133,10 +136,33 @@ export class LayoutCompositor {
 
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.22)';
     ctx.lineWidth = 2;
-    ctx.strokeRect(r.x + 1, r.y + 1, r.width - 2, r.height - 2);
+    roundedRectPath(ctx, r.x + 1, r.y + 1, r.width - 2, r.height - 2, Math.max(0, rad - 1));
+    ctx.stroke();
   }
 
   readPixels(): Buffer {
     return Buffer.from(this.canvas.data());
   }
+}
+
+function roundedRectPath(
+  ctx: SKRSContext2D,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  radius: number,
+): void {
+  const r = Math.max(0, Math.min(radius, w / 2, h / 2));
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
 }
