@@ -18,7 +18,9 @@ import { CastPlayer as CastPlayerForSheet } from '../render/cast-player.js';
 import { encodeFrames } from '../render/encoder.js';
 import { browserFrameCount, resampleManifest } from '../render/resample.js';
 import { CastPlayer } from '../render/cast-player.js';
-import { planComposition, wallClockAt } from '../render/composition.js';
+import { planComposition, wallClockAt, tailProgress } from '../render/composition.js';
+import { findInScreen } from '../render/find-in-screen.js';
+import { spring } from '../render/zoom.js';
 import { LayoutCompositor, TRANSITION_SEC } from '../render/layout.js';
 import {
   castIdleSpans,
@@ -196,7 +198,12 @@ export async function renderDemo(
       idleByScene[sc.id] = idleBySession[sc.layout?.primary ?? sc.use] ?? [];
     }
 
-    const plan = planComposition(script, capture.scenes, { idleByScene });
+    const terminalSessions = new Set(
+      Object.entries(script.sessions)
+        .filter(([, cfg]) => cfg.backend === 'terminal')
+        .map(([id]) => id),
+    );
+    const plan = planComposition(script, capture.scenes, { idleByScene, terminalSessions });
     const compositor = new LayoutCompositor(canvasW, canvasH, DEFAULT_THEME);
 
     // One live source per session, all advanced in lockstep so a layout
@@ -235,7 +242,11 @@ export async function renderDemo(
     }
 
     /** Draw one session's state at a wall-clock instant onto its canvas. */
-    const surfaceFor = async (sessionId: string, wallMs: number) => {
+    const surfaceFor = async (
+      sessionId: string,
+      wallMs: number,
+      terminalZoom?: { pattern: string; progress: number },
+    ) => {
       const player = players.get(sessionId);
       if (player) {
         const cast = capture.casts[sessionId]!;
@@ -243,7 +254,17 @@ export async function renderDemo(
         // Forward-only; a hold can ask for the same instant repeatedly.
         if (tSec >= player.position) await player.advanceTo(tSec);
         const renderer = terminalRenderers.get(sessionId)!;
-        renderer.compose(player.screen());
+        const screen = player.screen();
+
+        if (terminalZoom) {
+          // Lossless: the grid is re-rasterised at the zoomed size rather
+          // than upscaled, so the text stays sharp.
+          const target = script.style?.zoom?.scale ?? 1.8;
+          const eased = 1 + (target - 1) * spring(terminalZoom.progress);
+          renderer.composeZoomed(screen, findInScreen(screen, terminalZoom.pattern), eased);
+        } else {
+          renderer.compose(screen);
+        }
         return renderer.surface;
       }
 
@@ -290,7 +311,10 @@ export async function renderDemo(
         }
 
         compositor.clear();
-        compositor.drawFullscreen(await surfaceFor(at.window.primary, at.wallMs));
+        const termZoom = at.window.terminalFocus
+          ? { pattern: at.window.terminalFocus, progress: tailProgress(at.window, outSec) }
+          : undefined;
+        compositor.drawFullscreen(await surfaceFor(at.window.primary, at.wallMs, termZoom));
         if (at.window.inset) {
           compositor.drawInset(
             await surfaceFor(at.window.inset.session, at.wallMs),

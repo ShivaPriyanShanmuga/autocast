@@ -156,8 +156,10 @@ export async function captureDemo(
             });
           }
         } else {
+          const zoomDuration = script.style?.zoom?.duration;
           await entry.session.animateZoom(script.style?.zoom?.scale ?? 1.8, {
             ...(script.style?.zoom?.ease ? { ease: script.style.zoom.ease } : {}),
+            ...(zoomDuration === undefined ? {} : { durationMs: toMs(zoomDuration, 800) }),
           });
           await new Promise((r) => setTimeout(r, settleMs));
         }

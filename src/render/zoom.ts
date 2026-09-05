@@ -27,7 +27,11 @@ export interface PlanZoomOptions {
 }
 
 const DEFAULT_STEPS = 12;
-const DEFAULT_DURATION_MS = 420;
+/**
+ * 420ms read as hurried: a zoom is a change of attention, and the eye
+ * needs longer to follow it than a cursor needs to cross the screen.
+ */
+const DEFAULT_DURATION_MS = 800;
 
 export function planZoom(from: number, to: number, opts: PlanZoomOptions = {}): ZoomStep[] {
   const count = Math.max(1, opts.steps ?? DEFAULT_STEPS);
