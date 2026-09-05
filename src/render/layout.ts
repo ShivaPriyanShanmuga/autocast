@@ -11,6 +11,9 @@ export interface Rect {
 
 const DEFAULT_MARGIN = 24;
 
+/** How long a scene cut takes to blend. */
+export const TRANSITION_SEC = 0.35;
+
 /** Where an inset sits, keeping the canvas aspect ratio. */
 export function insetRect(
   canvasW: number,
@@ -44,6 +47,7 @@ type Drawable = Canvas | Image;
 export class LayoutCompositor {
   private readonly canvas: Canvas;
   private readonly ctx: SKRSContext2D;
+  private hold: Canvas | null = null;
 
   constructor(
     private readonly width: number,
@@ -56,6 +60,36 @@ export class LayoutCompositor {
 
   get context(): SKRSContext2D {
     return this.ctx;
+  }
+
+  get surface(): Canvas {
+    return this.canvas;
+  }
+
+  /**
+   * Remember the current frame so it can be faded out over the next
+   * scene.
+   *
+   * Snapshotting is what makes a crossfade possible at all: the outgoing
+   * scene cannot simply be re-rendered, because a forward-only
+   * CastPlayer would have to seek backwards to produce it again. At a
+   * scene boundary the outgoing scene is in its frozen tail, so a
+   * snapshot loses nothing.
+   */
+  snapshot(): void {
+    this.hold ??= createCanvas(this.width, this.height);
+    const ctx = this.hold.getContext('2d');
+    ctx.clearRect(0, 0, this.width, this.height);
+    ctx.drawImage(this.canvas, 0, 0);
+  }
+
+  /** Draw the snapshotted frame over the current one. */
+  fadeInPrevious(alpha: number): void {
+    if (!this.hold || alpha <= 0) return;
+    this.ctx.save();
+    this.ctx.globalAlpha = Math.min(1, alpha);
+    this.ctx.drawImage(this.hold, 0, 0);
+    this.ctx.restore();
   }
 
   clear(): void {

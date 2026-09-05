@@ -6,7 +6,8 @@ import { encodeFrames } from '../render/encoder.js';
 import { browserFrameCount, resampleManifest } from '../render/resample.js';
 import { CastPlayer } from '../render/cast-player.js';
 import { planComposition, wallClockAt } from '../render/composition.js';
-import { LayoutCompositor } from '../render/layout.js';
+import { LayoutCompositor, TRANSITION_SEC } from '../render/layout.js';
+import { castIdleSpans, manifestIdleSpans, type IdleSpan } from '../render/idle.js';
 import { fitGeometry, FrameRenderer } from '../render/frame.js';
 import { frameCount, replayCast } from '../render/replay.js';
 import { DEFAULT_THEME } from '../render/theme.js';
@@ -55,7 +56,21 @@ export async function renderDemo(
   }));
 
   if (needsComposition) {
-    const plan = planComposition(script, capture.scenes);
+    // Detect idle on the session the viewer is actually watching — a
+    // scene's `primary`, which is not always its acting session.
+    const idleBySession: Record<string, IdleSpan[]> = {};
+    for (const [id, cast] of Object.entries(capture.casts)) {
+      idleBySession[id] = castIdleSpans(cast);
+    }
+    for (const [id, manifest] of Object.entries(capture.frames)) {
+      idleBySession[id] = manifestIdleSpans(manifest);
+    }
+    const idleByScene: Record<string, IdleSpan[]> = {};
+    for (const sc of script.scenes) {
+      idleByScene[sc.id] = idleBySession[sc.layout?.primary ?? sc.use] ?? [];
+    }
+
+    const plan = planComposition(script, capture.scenes, { idleByScene });
     const compositor = new LayoutCompositor(canvasW, canvasH, DEFAULT_THEME);
 
     // One live source per session, all advanced in lockstep so a layout
@@ -126,11 +141,19 @@ export async function renderDemo(
 
     const totalFrames = Math.max(1, Math.ceil(plan.totalSec * fps));
 
+    let previousWindowId: string | null = null;
+
     async function* composedFrames(): AsyncGenerator<Buffer> {
       for (let i = 0; i < totalFrames; i++) {
         const outSec = (i + 0.5) / fps;
         const at = wallClockAt(plan, outSec);
         if (!at) continue;
+
+        // Snapshot BEFORE clearing: on the frame the window changes, the
+        // canvas still holds the outgoing scene's final frame.
+        if (previousWindowId !== null && previousWindowId !== at.window.id) {
+          compositor.snapshot();
+        }
 
         compositor.clear();
         compositor.drawFullscreen(await surfaceFor(at.window.primary, at.wallMs));
@@ -140,6 +163,13 @@ export async function renderDemo(
             at.window.inset,
           );
         }
+        // Fade the outgoing scene out over the first moments of this one.
+        const intoScene = outSec - at.window.outStartSec;
+        if (previousWindowId !== null && intoScene < TRANSITION_SEC) {
+          compositor.fadeInPrevious(1 - intoScene / TRANSITION_SEC);
+        }
+
+        previousWindowId = at.window.id;
         yield compositor.readPixels();
       }
     }

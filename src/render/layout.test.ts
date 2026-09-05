@@ -119,3 +119,64 @@ describe('LayoutCompositor', () => {
     expect(Buffer.compare(blank, c.readPixels())).toBe(0);
   });
 });
+
+describe('crossfade', () => {
+  const W = 320;
+  const H = 180;
+
+  it('snapshot then full fade reproduces the snapshotted frame', () => {
+    const c = new LayoutCompositor(W, H, DEFAULT_THEME);
+    c.clear();
+    c.drawFullscreen(solid(W, H, '#ff0000'));
+    c.snapshot();
+
+    c.clear();
+    c.drawFullscreen(solid(W, H, '#0000ff'));
+    c.fadeInPrevious(1);
+
+    // Fully opaque: the outgoing frame wins.
+    const px = (H / 2) * W * 4 + (W / 2) * 4;
+    const buf = c.readPixels();
+    expect(buf[px]!).toBeGreaterThan(200);
+    expect(buf[px + 2]!).toBeLessThan(80);
+  });
+
+  it('alpha 0 leaves the incoming frame untouched', () => {
+    const c = new LayoutCompositor(W, H, DEFAULT_THEME);
+    c.clear();
+    c.drawFullscreen(solid(W, H, '#ff0000'));
+    c.snapshot();
+
+    c.clear();
+    c.drawFullscreen(solid(W, H, '#0000ff'));
+    const before = c.readPixels();
+    c.fadeInPrevious(0);
+    expect(Buffer.compare(before, c.readPixels())).toBe(0);
+  });
+
+  it('blends part way between the two', () => {
+    const c = new LayoutCompositor(W, H, DEFAULT_THEME);
+    c.clear();
+    c.drawFullscreen(solid(W, H, '#ff0000'));
+    c.snapshot();
+
+    c.clear();
+    c.drawFullscreen(solid(W, H, '#0000ff'));
+    c.fadeInPrevious(0.5);
+
+    const px = (H / 2) * W * 4 + (W / 2) * 4;
+    const buf = c.readPixels();
+    // Both channels present: neither pure red nor pure blue.
+    expect(buf[px]!).toBeGreaterThan(40);
+    expect(buf[px + 2]!).toBeGreaterThan(40);
+  });
+
+  it('is a no-op before anything has been snapshotted', () => {
+    const c = new LayoutCompositor(W, H, DEFAULT_THEME);
+    c.clear();
+    c.drawFullscreen(solid(W, H, '#00ff00'));
+    const before = c.readPixels();
+    c.fadeInPrevious(0.5);
+    expect(Buffer.compare(before, c.readPixels())).toBe(0);
+  });
+});
