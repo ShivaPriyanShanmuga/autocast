@@ -3,6 +3,7 @@ import type { CastLog } from '../backends/terminal/cast.js';
 import { BrowserFrameRenderer, composeBrowserWithCursor } from '../render/browser-frame.js';
 import type { CursorKeyframe } from '../render/cursor.js';
 import { rm } from 'node:fs/promises';
+import { join } from 'node:path';
 import {
   detectDurationAnomaly,
   scanBrowserText,
@@ -10,6 +11,8 @@ import {
   type Finding,
 } from '../verify/heuristics.js';
 import { buildReport, writeReport } from '../verify/report.js';
+import { writeContactSheet } from '../verify/contact-sheet.js';
+import { CastPlayer as CastPlayerForSheet } from '../render/cast-player.js';
 import { encodeFrames } from '../render/encoder.js';
 import { browserFrameCount, resampleManifest } from '../render/resample.js';
 import { CastPlayer } from '../render/cast-player.js';
@@ -29,6 +32,8 @@ import { captureDemo } from './capture.js';
 export interface RenderReport {
   ok: boolean;
   outputPath: string;
+  /** Contact sheet for a failed run, or null. Never read back. */
+  contactSheetPath: string | null;
   /** Heuristic findings — failures nobody wrote an assertion for. */
   findings: Finding[];
   /** Where the machine-readable report was written. */
@@ -131,8 +136,38 @@ export async function renderDemo(
     // never leave an older good one sitting at the output path where it
     // would be mistaken for this run's result.
     await rm(outputPath, { force: true });
+
+    // Sample the failing scene so a human has something to look at. The
+    // path is reported and never opened (spec section 3 constraint 2).
+    const failing = capture.scenes.find((s2) => !s2.ok);
+    let contactSheetPath: string | null = null;
+    if (failing) {
+      try {
+        const shots = await sampleFailingScene(capture, script, failing, canvasW, canvasH);
+        if (shots.length > 0) {
+          contactSheetPath = await writeContactSheet(
+            join('.autocast', 'failed', `${failing.id}-contact.png`),
+            shots,
+            { width: canvasW, height: canvasH },
+          );
+        }
+      } catch {
+        // A contact sheet is a diagnostic nicety; never let it mask the
+        // real failure it is describing.
+      }
+    }
+
     const reportPath = await finish(0, 0);
-    return { ok: false, outputPath, scenes, findings, reportPath, frames: 0, durationSec: 0 };
+    return {
+      ok: false,
+      outputPath,
+      scenes,
+      findings,
+      reportPath,
+      contactSheetPath,
+      frames: 0,
+      durationSec: 0,
+    };
   }
 
   if (needsComposition) {
@@ -274,6 +309,7 @@ export async function renderDemo(
       scenes,
       findings,
       reportPath,
+      contactSheetPath: null,
       frames: encoded.frames,
       durationSec: Number(plan.totalSec.toFixed(2)),
     };
@@ -325,6 +361,7 @@ export async function renderDemo(
       scenes,
       findings,
       reportPath,
+      contactSheetPath: null,
       frames: encoded.frames,
       durationSec,
     };
@@ -359,6 +396,7 @@ export async function renderDemo(
     scenes,
     findings,
     reportPath,
+    contactSheetPath: null,
     frames: written,
     durationSec,
   };
@@ -384,6 +422,9 @@ export function formatRenderReport(report: RenderReport): string {
   lines.push('');
   lines.push(`  ${report.frames} frames, ${report.durationSec}s`);
   if (report.reportPath) lines.push(`  report: ${report.reportPath}`);
+  if (report.contactSheetPath) {
+    lines.push(`  contact sheet: ${report.contactSheetPath}   (not read automatically)`);
+  }
   lines.push('');
   lines.push(
     report.ok
@@ -392,4 +433,57 @@ export function formatRenderReport(report: RenderReport): string {
   );
 
   return lines.join('\n');
+}
+
+/**
+ * Compose a handful of frames spread across a failing scene.
+ *
+ * Kept separate from the render paths because it runs only on failure,
+ * and must never be able to break the reporting of the failure itself.
+ */
+async function sampleFailingScene(
+  capture: Awaited<ReturnType<typeof captureDemo>>,
+  script: DemoScript,
+  failing: { id: string; startedAt: number; endedAt: number },
+  canvasW: number,
+  canvasH: number,
+): Promise<Buffer[]> {
+  const scene = script.scenes.find((s) => s.id === failing.id);
+  if (!scene) return [];
+  const watched = scene.layout?.primary ?? scene.use;
+  const shots: Buffer[] = [];
+  const COUNT = 6;
+
+  const cast = capture.casts[watched];
+  if (cast) {
+    const player = new CastPlayerForSheet(cast, DEFAULT_THEME);
+    const renderer = new FrameRenderer(
+      fitGeometry(cast.width, cast.height, canvasW, canvasH),
+      DEFAULT_THEME,
+    );
+    const startSec = Math.max(0, (failing.startedAt - cast.startedAtMs) / 1000);
+    const endSec = Math.max(startSec, (failing.endedAt - cast.startedAtMs) / 1000);
+    for (let i = 0; i < COUNT; i++) {
+      const t = startSec + ((endSec - startSec) * i) / Math.max(1, COUNT - 1);
+      await player.advanceTo(t);
+      renderer.compose(player.screen());
+      shots.push(Buffer.from(renderer.readPixels()));
+    }
+    return shots;
+  }
+
+  const manifest = capture.frames[watched];
+  if (manifest && manifest.frames.length > 0) {
+    const renderer = new BrowserFrameRenderer({ width: canvasW, height: canvasH }, DEFAULT_THEME);
+    const inScene = manifest.frames.filter(
+      (f) => f.tSec * 1000 >= failing.startedAt && f.tSec * 1000 <= failing.endedAt,
+    );
+    const pool = inScene.length > 0 ? inScene : manifest.frames;
+    for (let i = 0; i < Math.min(COUNT, pool.length); i++) {
+      const idx = Math.round((i * (pool.length - 1)) / Math.max(1, Math.min(COUNT, pool.length) - 1));
+      await renderer.compose(pool[idx]!.path);
+      shots.push(Buffer.from(renderer.readPixels()));
+    }
+  }
+  return shots;
 }

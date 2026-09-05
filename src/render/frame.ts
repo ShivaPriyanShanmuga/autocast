@@ -125,8 +125,12 @@ export class FrameRenderer {
 
   }
 
+  readPixels(): Buffer {
+    return Buffer.from(this.canvas.data());
+  }
+
   render(screen: ScreenState): Buffer {
     this.compose(screen);
-    return Buffer.from(this.canvas.data());
+    return this.readPixels();
   }
 }
