@@ -5,8 +5,15 @@ export interface CastLog {
   version: 2;
   width: number;
   height: number;
-  /** Unix seconds when recording began. */
+  /** Unix seconds, floored — the asciicast v2 header field. */
   timestamp: number;
+  /**
+   * Wall-clock milliseconds at which recording began, unfloored.
+   *
+   * `timestamp` loses up to a second, which is thirty frames at 30fps.
+   * Composition maps scene times onto this field, never onto the header.
+   */
+  startedAtMs: number;
   events: CastEvent[];
 }
 
@@ -38,6 +45,7 @@ export class CastRecorder {
       width: this.width,
       height: this.height,
       timestamp: Math.floor(this.startedAt / 1000),
+      startedAtMs: this.startedAt,
       events: [...this.events],
     };
   }
@@ -49,6 +57,7 @@ export class CastRecorder {
       width: log.width,
       height: log.height,
       timestamp: log.timestamp,
+      startedAtMs: log.startedAtMs,
     });
     return [header, ...log.events.map((e) => JSON.stringify(e))].join('\n') + '\n';
   }
@@ -65,6 +74,8 @@ export function parseJsonl(text: string): CastLog {
     width: header.width,
     height: header.height,
     timestamp: header.timestamp,
+    // Fallback keeps third-party asciicasts loadable.
+    startedAtMs: header.startedAtMs ?? header.timestamp * 1000,
     events: eventLines.map((l) => JSON.parse(l) as CastEvent),
   };
 }

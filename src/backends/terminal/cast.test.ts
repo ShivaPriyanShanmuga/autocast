@@ -45,3 +45,29 @@ describe('CastRecorder', () => {
     expect(JSON.parse(lines[1]!)[2]).toBe('x');
   });
 });
+
+describe('precise epoch', () => {
+  it('records the start time in unfloored milliseconds', () => {
+    const r = new CastRecorder(80, 24, fakeClock([1788570639123, 1788570639623]));
+    r.record('x');
+    expect(r.log().startedAtMs).toBe(1788570639123);
+  });
+
+  it('keeps the asciicast header timestamp in floored seconds', () => {
+    const r = new CastRecorder(80, 24, fakeClock([1788570639123]));
+    expect(r.log().timestamp).toBe(1788570639);
+  });
+
+  it('survives a jsonl round trip', () => {
+    const r = new CastRecorder(80, 24, fakeClock([1788570639123, 1788570639456]));
+    r.record('y');
+    expect(parseJsonl(r.toJsonl()).startedAtMs).toBe(1788570639123);
+  });
+
+  it('is precise enough to place a scene within one frame at 30fps', () => {
+    // The floored header would round 1788570639999 down to ...639000,
+    // an error of 999ms — thirty frames at 30fps.
+    const r = new CastRecorder(80, 24, fakeClock([1788570639999]));
+    expect(r.log().startedAtMs % 1000).toBe(999);
+  });
+});
