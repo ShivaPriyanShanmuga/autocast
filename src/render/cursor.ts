@@ -74,6 +74,8 @@ export function cursorAt(
 export interface DrawCursorOptions {
   size?: number;
   clickAge?: number | null;
+  /** Recent positions, drawn faded, approximating motion blur. */
+  trail?: CursorPoint[];
 }
 
 /**
@@ -99,7 +101,33 @@ export function drawCursor(
     ctx.stroke();
   }
 
-  // Classic arrow, drawn with a light outline so it reads on any page.
+  // Approximate motion blur: the cursor's recent positions at decaying
+  // alpha. True accumulation blur would need the frame re-rendered at a
+  // multiple of the frame rate, which is impossible for browser zoom
+  // because it is baked in at capture time (spec section 4.5).
+  const trail = opts.trail ?? [];
+  trail.forEach((point, i) => {
+    ctx.save();
+    ctx.globalAlpha = ((i + 1) / (trail.length + 1)) * 0.35;
+    arrowPath(ctx, point, size);
+    ctx.fillStyle = 'rgba(20, 20, 28, 0.95)';
+    ctx.fill();
+    ctx.restore();
+  });
+
+  arrowPath(ctx, at, size);
+  ctx.fillStyle = 'rgba(20, 20, 28, 0.95)';
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.9)';
+  ctx.lineWidth = 1.2;
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+/** The classic arrow, as a path only, so the trail can reuse it. */
+function arrowPath(ctx: SKRSContext2D, at: CursorPoint, size: number): void {
+  const { x, y } = at;
   ctx.beginPath();
   ctx.moveTo(x, y);
   ctx.lineTo(x, y + size);
@@ -109,14 +137,6 @@ export function drawCursor(
   ctx.lineTo(x + size * 0.44, y + size * 0.69);
   ctx.lineTo(x + size * 0.72, y + size * 0.66);
   ctx.closePath();
-
-  ctx.fillStyle = 'rgba(20, 20, 28, 0.95)';
-  ctx.fill();
-  ctx.strokeStyle = 'rgba(255, 255, 255, 0.9)';
-  ctx.lineWidth = 1.2;
-  ctx.stroke();
-
-  ctx.restore();
 }
 
 export interface ZoomKeyframe {

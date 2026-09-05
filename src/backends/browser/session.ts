@@ -1,5 +1,6 @@
 import type { Browser, BrowserContext, CDPSession, Page } from 'playwright';
 import type { CursorKeyframe, CursorPoint, ZoomKeyframe } from '../../render/cursor.js';
+import type { PlanZoomOptions } from '../../render/zoom.js';
 import { FrameStore, type FrameManifest } from './frame-store.js';
 
 export interface BrowserSessionOptions {
@@ -22,6 +23,8 @@ export interface BrowserSession {
   startCapture(): Promise<void>;
   stopCapture(): Promise<void>;
   setZoom(scale: number): Promise<void>;
+  animateZoom(to: number, opts?: PlanZoomOptions): Promise<void>;
+  currentZoom(): number;
   boundingBox(selector: string): Promise<BoundingBox | null>;
   consoleErrors(): string[];
   failedRequests(): string[];
@@ -59,6 +62,7 @@ export async function openBrowserSession(
   const failedRequests: string[] = [];
   const pointerTrack: CursorKeyframe[] = [];
   const zoomTrack: ZoomKeyframe[] = [];
+  let zoom = 1;
   page.on('console', (m) => {
     if (m.type() === 'error') consoleErrors.push(m.text());
   });
@@ -114,7 +118,23 @@ export async function openBrowserSession(
       // Recorded so the cursor overlay can follow the scale; without
       // this the pointer is drawn where it never was.
       zoomTrack.push({ tSec: Date.now() / 1000, scale });
+      zoom = scale;
     },
+
+    async animateZoom(to, opts) {
+      const { planZoom } = await import('../../render/zoom.js');
+      for (const step of planZoom(zoom, to, opts)) {
+        await client.send('Emulation.setPageScaleFactor', { pageScaleFactor: step.scale });
+        // Record EVERY step, not just the destination: the cursor
+        // overlay scales from this track, so an endpoint-only record
+        // makes the pointer jump at the end of the animation.
+        zoomTrack.push({ tSec: Date.now() / 1000, scale: step.scale });
+        if (step.delayMs > 0) await new Promise((r) => setTimeout(r, step.delayMs));
+      }
+      zoom = to;
+    },
+
+    currentZoom: () => zoom,
 
     async boundingBox(selector) {
       const locator = page.locator(selector).first();

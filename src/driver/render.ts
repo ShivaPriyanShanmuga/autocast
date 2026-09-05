@@ -268,6 +268,7 @@ export async function renderDemo(
         tSec,
         browserZooms.get(sessionId) ?? [],
         resolvedStyle.cursorSize,
+        resolvedStyle.motionBlurCursor,
       );
       return browser.surface;
     };
@@ -360,6 +361,7 @@ export async function renderDemo(
           tick.tSec,
           zooms,
           resolvedStyle.cursorSize,
+          resolvedStyle.motionBlurCursor,
         );
         yield presenter.present(browserRenderer.surface);
       }

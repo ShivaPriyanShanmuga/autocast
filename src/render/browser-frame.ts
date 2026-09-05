@@ -116,6 +116,7 @@ export async function composeBrowserWithCursor(
   tSec: number,
   zoomTrack: readonly ZoomKeyframe[] = [],
   cursorSize = 1,
+  motionBlur = false,
 ): Promise<void> {
   await renderer.compose(jpegPath);
   const cursor = cursorAt([...pointers], tSec);
@@ -123,9 +124,20 @@ export async function composeBrowserWithCursor(
   // Keyframes are CSS pixels. Once the page is scaled, the same element
   // sits somewhere else on screen, so the pointer must scale with it.
   const scale = scaleAt(zoomTrack, tSec);
-  drawCursor(
-    renderer.context,
-    { x: cursor.at.x * scale, y: cursor.at.y * scale },
-    { clickAge: cursor.clickAge, size: 18 * cursorSize },
-  );
+  const scaled = (p: { x: number; y: number }) => ({ x: p.x * scale, y: p.y * scale });
+
+  // Sample the same curve slightly in the past; if the cursor is still,
+  // these coincide and the trail is invisible.
+  const trail = motionBlur
+    ? [0.06, 0.03]
+        .map((back) => cursorAt([...pointers], tSec - back))
+        .filter((c): c is NonNullable<typeof c> => c !== null)
+        .map((c) => scaled(c.at))
+    : [];
+
+  drawCursor(renderer.context, scaled(cursor.at), {
+    clickAge: cursor.clickAge,
+    size: 18 * cursorSize,
+    trail,
+  });
 }
