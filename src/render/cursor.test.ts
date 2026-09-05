@@ -111,3 +111,34 @@ describe('drawCursor', () => {
     expect(() => drawCursor(canvas.getContext('2d'), { x: -100, y: 900 }, {})).not.toThrow();
   });
 });
+
+describe('cursor motion blur', () => {
+  it('a trail changes the drawn frame', () => {
+    const plain = createCanvas(120, 120);
+    drawCursor(plain.getContext('2d'), { x: 60, y: 60 }, {});
+
+    const blurred = createCanvas(120, 120);
+    drawCursor(blurred.getContext('2d'), { x: 60, y: 60 }, {
+      trail: [
+        { x: 20, y: 20 },
+        { x: 40, y: 40 },
+      ],
+    });
+
+    expect(Buffer.compare(Buffer.from(plain.data()), Buffer.from(blurred.data()))).not.toBe(0);
+  });
+
+  it('an empty trail draws exactly as no trail', () => {
+    const a = createCanvas(120, 120);
+    drawCursor(a.getContext('2d'), { x: 60, y: 60 }, {});
+    const b = createCanvas(120, 120);
+    drawCursor(b.getContext('2d'), { x: 60, y: 60 }, { trail: [] });
+    expect(Buffer.compare(Buffer.from(a.data()), Buffer.from(b.data()))).toBe(0);
+  });
+
+  it('does not throw for a long trail', () => {
+    const c = createCanvas(80, 80);
+    const trail = Array.from({ length: 30 }, (_, i) => ({ x: i, y: i }));
+    expect(() => drawCursor(c.getContext('2d'), { x: 40, y: 40 }, { trail })).not.toThrow();
+  });
+});

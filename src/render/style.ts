@@ -12,6 +12,8 @@ export interface ResolvedStyle {
   shadow: boolean;
   /** Multiplier on the drawn cursor. */
   cursorSize: number;
+  /** Draw the cursor's recent positions faded, approximating blur. */
+  motionBlurCursor: boolean;
 }
 
 /**
@@ -26,6 +28,7 @@ export const PLAIN: ResolvedStyle = {
   radius: 0,
   shadow: false,
   cursorSize: 1,
+  motionBlurCursor: false,
 };
 
 /** Padding used when a background is requested without one. */
@@ -51,5 +54,6 @@ export function resolveStyle(style: DemoScript['style']): ResolvedStyle {
     radius: style.window?.radius ?? 0,
     shadow: style.window?.shadow ?? false,
     cursorSize: style.cursor?.size ?? 1,
+    motionBlurCursor: style.motion_blur?.cursor ?? false,
   };
 }

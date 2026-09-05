@@ -454,10 +454,16 @@ re-renders without re-running anything.
   element plus margin, and we know precisely when the interaction ends and the
   camera should pull back. Their version is a heuristic; ours is exact. Scene
   boundaries also zoom out deliberately, because we know a cut is coming.
-- **Motion blur** — camera moves (pan, zoom, cursor travel) are composited at
-  4x the target fps and box-averaged down, producing true accumulation blur.
-  Only motion segments pay the cost, not the whole video. Configurable
-  independently per channel via `style.motion_blur`.
+- **Motion blur** — available for cursor travel only, approximated by drawing
+  recent positions at decaying alpha.
+
+  The original plan here was accumulation blur: composite camera moves at 4x
+  the frame rate and box-average down. That assumed every camera move is
+  compositor-side. It is not — section 4.5 puts browser zoom *in the browser*,
+  so a zoom is baked into captured frames and there is nothing to re-render at
+  4x. Blur is therefore possible for the cursor, which the compositor draws,
+  and not for zoom. Terminal zoom would be eligible, since the terminal is
+  rendered offline, but terminals do not currently zoom.
 - **Presentation frame** — optional gradient/solid background with padding,
   rounded window corners and a drop shadow (`style.background`,
   `style.window`). Pure compositor layer over the normalized canvas.

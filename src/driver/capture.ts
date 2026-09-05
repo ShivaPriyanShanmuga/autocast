@@ -9,6 +9,7 @@ import { evaluateAssertion, type AssertResult } from '../backends/terminal/asser
 import type { CastLog } from '../backends/terminal/cast.js';
 import { openTerminalSession, type TerminalSession } from '../backends/terminal/session.js';
 import { executeStep, type StepResult } from '../backends/terminal/steps.js';
+import { zoomIntentFor } from './zoom-target.js';
 
 export interface SceneCapture {
   id: string;
@@ -133,24 +134,31 @@ export async function captureDemo(
       // revealed BY the steps — a form that starts hidden, a result that
       // does not exist until submit — so framing it up front would
       // deadlock: the element cannot appear until the steps that make it
-      // appear have run. Zooming here frames the end state, and the hold
-      // below gives the screencast something to capture at that scale.
-      if (entry.kind === 'browser' && scene.focus !== undefined) {
-        const box = await entry.session.boundingBox(scene.focus);
+      // appear have run.
+      const intent = zoomIntentFor(scene, {
+        zoomAuto: script.style?.zoom?.auto ?? false,
+        zoomOn: script.style?.zoom?.on ?? 'click',
+      });
+
+      if (entry.kind === 'browser' && intent) {
+        const box = await entry.session.boundingBox(intent.selector);
         if (box === null) {
-          // Lint cannot catch this: it needs a live page. Record it rather
-          // than silently rendering an unzoomed shot.
-          assertions.push({
-            name: 'focus',
-            ok: false,
-            detail:
-              `focus selector ${scene.focus} matched no visible element after the ` +
-              'scene ran (it may be absent, or present but not rendered)',
-          });
+          // An explicit focus that matches nothing is an authoring error
+          // worth reporting. An auto guess that misses is not — the
+          // author never asked for it.
+          if (intent.source === 'focus') {
+            assertions.push({
+              name: 'focus',
+              ok: false,
+              detail:
+                `focus selector ${intent.selector} matched no visible element after the ` +
+                'scene ran (it may be absent, or present but not rendered)',
+            });
+          }
         } else {
-          // Phase 2a applies a flat scale. Phase 2b uses `box` to frame
-          // the element and animates the scale across frames.
-          await entry.session.setZoom(1.8);
+          await entry.session.animateZoom(script.style?.zoom?.scale ?? 1.8, {
+            ...(script.style?.zoom?.ease ? { ease: script.style.zoom.ease } : {}),
+          });
           await new Promise((r) => setTimeout(r, settleMs));
         }
       }
