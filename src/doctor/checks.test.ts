@@ -71,12 +71,20 @@ describe('node-pty check', () => {
     expect(CHECKS.map((c) => c.name)).toContain('node-pty');
   });
 
-  it('reports ok when the native module loads', async () => {
+  it('reports ok when a terminal can actually be opened', async () => {
+    // Loading the binding is not enough: on macOS CI the module loaded
+    // and every spawn failed. This check opens a real PTY.
     const check = CHECKS.find((c) => c.name === 'node-pty')!;
     const r = await check.run();
     expect(r.status).toBe('ok');
     expect(r.detail).toMatch(/\d+\.\d+\.\d+/);
-  });
+  }, 30000);
+
+  it('names the resolved shell, so a spawn failure is diagnosable', async () => {
+    const check = CHECKS.find((c) => c.name === 'node-pty')!;
+    const r = await check.run();
+    expect(r.detail).toMatch(/\(.+\)/);
+  }, 30000);
 });
 
 describe('chromium check', () => {
