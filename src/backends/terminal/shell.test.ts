@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { resolveShell, cleanEnv } from './shell.js';
+import { resolveShell, cleanEnv, checkSpawnHelper } from './shell.js';
 
 const never = () => false;
 const always = () => true;
@@ -51,5 +51,30 @@ describe('cleanEnv', () => {
 
   it('includes the ambient environment', () => {
     expect(Object.keys(cleanEnv()).length).toBeGreaterThan(0);
+  });
+});
+
+describe('checkSpawnHelper', () => {
+  it('is not required off macOS', async () => {
+    const s = await checkSpawnHelper('linux', 'x64');
+    expect(s.required).toBe(false);
+    expect(s.executable).toBe(true);
+  });
+
+  it('is not required on Windows', async () => {
+    expect((await checkSpawnHelper('win32', 'x64')).required).toBe(false);
+  });
+
+  it('is required on macOS and reports a path', async () => {
+    // node-pty ships prebuilds/darwin-<arch>/spawn-helper and execs it.
+    const s = await checkSpawnHelper('darwin', 'arm64');
+    expect(s.required).toBe(true);
+    expect(s.path).toContain('spawn-helper');
+  });
+
+  it('reports non-executable rather than throwing for a missing arch', async () => {
+    const s = await checkSpawnHelper('darwin', 'not-a-real-arch');
+    expect(s.required).toBe(true);
+    expect(s.executable).toBe(false);
   });
 });

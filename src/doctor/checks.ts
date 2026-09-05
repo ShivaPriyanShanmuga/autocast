@@ -110,7 +110,27 @@ const nodePtyCheck: Check = {
       // cleanly and every spawn then failed with "posix_spawnp failed".
       // Actually opening a terminal is the only honest check.
       const { openTerminalSession } = await import('../backends/terminal/session.js');
-      const { resolveShell } = await import('../backends/terminal/shell.js');
+      const { resolveShell, checkSpawnHelper } = await import('../backends/terminal/shell.js');
+
+      // Check the macOS helper BEFORE spawning: node-pty execs a separate
+      // spawn-helper binary there, and if npm dropped its executable bit
+      // the only symptom is a bare "posix_spawnp failed."
+      const helper = await checkSpawnHelper();
+      if (helper.required && !helper.executable) {
+        return {
+          name: 'node-pty',
+          status: 'fail',
+          detail: 'spawn-helper is not executable',
+          hint: [
+            '    node-pty execs a separate spawn-helper binary on macOS, and npm',
+            '    does not reliably preserve its executable bit. Without it every',
+            '    terminal spawn fails with a bare "posix_spawnp failed."',
+            '',
+            `    chmod +x "${helper.path ?? 'node_modules/node-pty/prebuilds/darwin-*/spawn-helper'}"`,
+          ].join('\n'),
+        };
+      }
+
       const session = await openTerminalSession({ cols: 20, rows: 4 });
       await session.dispose();
 
@@ -119,10 +139,16 @@ const nodePtyCheck: Check = {
       return {
         name: 'node-pty',
         status: 'fail',
-        detail: `cannot open a terminal: ${
-          error instanceof Error ? (error.message.split('\n')[0] ?? error.message) : String(error)
-        }`,
+        detail: 'cannot open a terminal',
         hint: [
+          // The FULL message, not its first line. openTerminalSession
+          // deliberately reports the shell, cwd, platform and arch, and
+          // taking only line one threw all of that away — which is
+          // exactly what made the macOS failure hard to diagnose.
+          ...(error instanceof Error ? error.message : String(error))
+            .split('\n')
+            .map((line) => `    ${line}`),
+          '',
           '    autocast drives a real PTY for terminal scenes.',
           '    If the message above names a shell, set SHELL to one that exists.',
           '    node-pty ships prebuilt binaries for common platforms.',

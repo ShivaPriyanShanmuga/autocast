@@ -165,9 +165,16 @@ describe('Phase 3 exit criteria', () => {
 
     const dir = mkdtempSync(join(tmpdir(), 'autocast-p3-'));
     try {
+      // Own port: other files render the flagship in parallel, and it
+      // starts a server on a fixed port from inside the demo.
+      const { readFileSync, writeFileSync } = await import('node:fs');
+      const yaml = readFileSync('fixtures/flagship/demo.yaml', 'utf8').replace(/34700/g, '34712');
+      const script = join(dir, 'flagship.yaml');
+      writeFileSync(script, yaml);
+
       const out = join(dir, 'flagship.mp4');
       const c = captureIO();
-      const code = await runCli(['render', 'fixtures/flagship/demo.yaml', '--out', out], c.io);
+      const code = await runCli(['render', script, '--out', out], c.io);
 
       expect(code, c.out() + c.err()).toBe(0);
       expect(existsSync(out)).toBe(true);
