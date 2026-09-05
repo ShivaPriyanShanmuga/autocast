@@ -3,7 +3,6 @@ import type { CastLog } from '../backends/terminal/cast.js';
 import { BrowserFrameRenderer, composeBrowserWithCursor } from '../render/browser-frame.js';
 import type { CursorKeyframe, ZoomKeyframe } from '../render/cursor.js';
 import { Presenter } from '../render/present.js';
-import { createCanvas } from '@napi-rs/canvas';
 import { resolveStyle } from '../render/style.js';
 import type { Canvas } from '@napi-rs/canvas';
 import { rm } from 'node:fs/promises';
@@ -20,11 +19,16 @@ import { CastPlayer as CastPlayerForSheet } from '../render/cast-player.js';
 import { encodeFrames } from '../render/encoder.js';
 import { browserFrameCount, resampleManifest } from '../render/resample.js';
 import { CastPlayer } from '../render/cast-player.js';
-import { planComposition, wallClockAt, tailProgress } from '../render/composition.js';
+import { planComposition, type SceneFocus } from '../render/composition.js';
+import { planFrame } from '../render/frame-plan.js';
 import { findInScreen } from '../render/find-in-screen.js';
-import { cameraRect, cellRectToPixels, type Rect } from '../render/camera.js';
-import { spring } from '../render/zoom.js';
-import { LayoutCompositor, TRANSITION_SEC } from '../render/layout.js';
+import {
+  browserRectToPixels,
+  cameraRect,
+  cellRectToPixels,
+  type Rect,
+} from '../render/camera.js';
+import { LayoutCompositor } from '../render/layout.js';
 import {
   castIdleSpans,
   manifestIdleSpans,
@@ -76,9 +80,14 @@ export async function renderDemo(
 
   // More than one session, or any explicit layout, needs the composed
   // path; a single session keeps the simpler phase 1/2 fast paths.
+  //
+  // So does any zoom. Zoom is now a camera driven by the scene's tail,
+  // and the composition plan is the only thing that knows when a scene's
+  // tail is — the flat paths have no scene timeline at all.
   const needsComposition =
     Object.keys(script.sessions).length > 1 ||
-    script.scenes.some((s) => s.layout !== undefined);
+    script.scenes.some((s) => s.layout !== undefined || s.focus !== undefined) ||
+    (script.style?.zoom?.auto ?? false);
 
   const resolvedStyle = resolveStyle(script.style);
   const presenter = new Presenter(canvasW, canvasH, resolvedStyle);
@@ -206,23 +215,31 @@ export async function renderDemo(
         .filter(([, cfg]) => cfg.backend === 'terminal')
         .map(([id]) => id),
     );
-    const plan = planComposition(script, capture.scenes, { idleByScene, terminalSessions });
-    const compositor = new LayoutCompositor(canvasW, canvasH, DEFAULT_THEME);
+    const plan = planComposition(script, capture.scenes, {
+      idleByScene,
+      terminalSessions,
+      browserFocusByScene: capture.zoomBoxes,
+    });
 
-    // One live source per session, all advanced in lockstep so a layout
-    // can call on either at any frame.
-    const zoomedTerminals = new Set(
-      plan.windows.filter((w) => w.terminalFocus).map((w) => w.primary),
-    );
+    // Which sessions are ever on screen while a camera is zoomed. Those
+    // get rendered larger than the canvas so the camera has real pixels
+    // to move over; a demo that never zooms pays none of this.
+    const zoomedSessions = new Set<string>();
+    for (const w of plan.windows) {
+      if (!w.focus) continue;
+      zoomedSessions.add(w.primary);
+      if (w.inset) zoomedSessions.add(w.inset.session);
+    }
     const zoomTarget = script.style?.zoom?.scale ?? 1.8;
-    const ss = zoomedTerminals.size > 0 ? zoomTarget : 1;
-
-    // A supersampled chain for zooming windows. The camera is applied to
-    // the FINISHED frame — background, padding and rounded window
-    // included — so zooming reads as moving into the screen rather than
-    // scaling the contents of a pinned window.
+    const ss = zoomedSessions.size > 0 ? zoomTarget : 1;
     const bigW = Math.round(canvasW * ss);
     const bigH = Math.round(canvasH * ss);
+
+    // Two chains, differing only in size. The camera is applied to the
+    // FINISHED frame of either — background, padding and rounded window
+    // included — so zooming reads as moving into the screen rather than
+    // scaling the contents of a window that stays pinned where it was.
+    const compositor = new LayoutCompositor(canvasW, canvasH, DEFAULT_THEME);
     const zoomCompositor = new LayoutCompositor(bigW, bigH, DEFAULT_THEME);
     const zoomPresenter = new Presenter(bigW, bigH, {
       ...resolvedStyle,
@@ -231,16 +248,16 @@ export async function renderDemo(
       padding: Math.round(resolvedStyle.padding * ss),
       radius: Math.round(resolvedStyle.radius * ss),
     });
-    const outCanvas = createCanvas(canvasW, canvasH);
-    const outCtx = outCanvas.getContext('2d');
+
+    // The output frame. Crossfades live here, after the camera, so a
+    // zooming scene blends exactly like any other.
+    const outCompositor = new LayoutCompositor(canvasW, canvasH, DEFAULT_THEME);
 
     const players = new Map<string, CastPlayer>();
     const terminalRenderers = new Map<string, FrameRenderer>();
     for (const [id, cast] of Object.entries(capture.casts)) {
       players.set(id, new CastPlayer(cast, DEFAULT_THEME));
-      // Render at the zoom factor so the camera has real pixels to crop
-      // into; a demo that never zooms this terminal pays nothing.
-      const sessionSs = zoomedTerminals.has(id) ? ss : 1;
+      const sessionSs = zoomedSessions.has(id) ? ss : 1;
       terminalRenderers.set(
         id,
         new FrameRenderer(
@@ -260,9 +277,16 @@ export async function renderDemo(
     const browserPointers = new Map<string, CursorKeyframe[]>();
     const browserZooms = new Map<string, ZoomKeyframe[]>();
     for (const [id, manifest] of Object.entries(capture.frames)) {
+      const sessionSs = zoomedSessions.has(id) ? ss : 1;
       browsers.set(
         id,
-        new BrowserFrameRenderer({ width: canvasW, height: canvasH }, DEFAULT_THEME),
+        new BrowserFrameRenderer(
+          {
+            width: Math.round(canvasW * sessionSs),
+            height: Math.round(canvasH * sessionSs),
+          },
+          DEFAULT_THEME,
+        ),
       );
       browserTicks.set(id, resampleManifest(manifest, { fps, tailMs: 0 }));
       // Pointer and zoom keyframes are absolute unix seconds; rebase onto
@@ -278,12 +302,20 @@ export async function renderDemo(
       );
     }
 
-    /** Draw one session's state at a wall-clock instant onto its canvas. */
+    /**
+     * Draw one session's state at a wall-clock instant onto its canvas,
+     * and say where on that canvas the camera should look.
+     *
+     * Both backends answer the same question. A terminal resolves its
+     * pattern against the character grid it just rendered; a browser
+     * already has a box the DOM measured at capture time. Neither reads
+     * a pixel to decide (spec section 3, constraint 2).
+     */
     const surfaceFor = async (
       sessionId: string,
       wallMs: number,
-      terminalZoom?: { pattern: string; progress: number },
-    ): Promise<{ surface: Canvas; focus?: Rect | null }> => {
+      focus?: SceneFocus,
+    ): Promise<{ surface: Canvas; focus: Rect | null }> => {
       const player = players.get(sessionId);
       if (player) {
         const cast = capture.casts[sessionId]!;
@@ -294,9 +326,9 @@ export async function renderDemo(
         const screen = player.screen();
         renderer.compose(screen);
 
-        if (!terminalZoom) return { surface: renderer.surface };
+        if (focus?.kind !== 'terminal') return { surface: renderer.surface, focus: null };
 
-        const cell = findInScreen(screen, terminalZoom.pattern);
+        const cell = findInScreen(screen, focus.pattern);
         return {
           surface: renderer.surface,
           focus: cell ? cellRectToPixels(renderer.geometry, screen, cell) : null,
@@ -326,7 +358,16 @@ export async function renderDemo(
         resolvedStyle.cursorSize,
         resolvedStyle.motionBlurCursor,
       );
-      return { surface: browser.surface };
+
+      if (focus?.kind !== 'browser') return { surface: browser.surface, focus: null };
+      return {
+        surface: browser.surface,
+        focus: browserRectToPixels(
+          { width: browser.surface.width, height: browser.surface.height },
+          { width: manifest.width, height: manifest.height },
+          focus.box,
+        ),
+      };
     };
 
     const totalFrames = Math.max(1, Math.ceil(plan.totalSec * fps));
@@ -336,78 +377,67 @@ export async function renderDemo(
     async function* composedFrames(): AsyncGenerator<Buffer> {
       for (let i = 0; i < totalFrames; i++) {
         const outSec = (i + 0.5) / fps;
-        const at = wallClockAt(plan, outSec);
-        if (!at) continue;
+        const frame = planFrame(plan, outSec, previousWindowId, zoomTarget);
+        if (!frame) continue;
+        const { window } = frame;
 
-        // Snapshot BEFORE clearing: on the frame the window changes, the
-        // canvas still holds the outgoing scene's final frame.
-        if (previousWindowId !== null && previousWindowId !== at.window.id) {
-          compositor.snapshot();
+        // Snapshot BEFORE clearing: the output canvas still holds the
+        // outgoing scene's last finished frame.
+        if (frame.cut) outCompositor.snapshot();
+        outCompositor.clear();
+
+        // A zooming window composes at the supersampled size; every
+        // window then goes through the same camera and the same fade.
+        const zooming = window.focus !== null;
+        const comp = zooming ? zoomCompositor : compositor;
+        const pres = zooming ? zoomPresenter : presenter;
+        const size = zooming
+          ? { width: bigW, height: bigH }
+          : { width: canvasW, height: canvasH };
+        const radius = zooming ? Math.round(resolvedStyle.radius * ss) : resolvedStyle.radius;
+
+        comp.clear();
+        const primary = await surfaceFor(
+          window.primary,
+          frame.wallMs,
+          window.focus ?? undefined,
+        );
+        comp.drawFullscreen(primary.surface);
+        if (window.inset) {
+          const inset = await surfaceFor(window.inset.session, frame.wallMs);
+          comp.drawInset(inset.surface, window.inset, radius);
         }
+        pres.presentToSurface(comp.surface);
 
-        compositor.clear();
-        const termZoom = at.window.terminalFocus
-          ? { pattern: at.window.terminalFocus, progress: tailProgress(at.window, outSec) }
-          : undefined;
-        const primary = await surfaceFor(at.window.primary, at.wallMs, termZoom);
+        // The focus was measured on the source surface; the presenter
+        // insets that surface by the padding, so carry it across.
+        const content = pres.contentRect();
+        const mapped = primary.focus
+          ? {
+              x: content.x + (primary.focus.x / size.width) * content.width,
+              y: content.y + (primary.focus.y / size.height) * content.height,
+              width: (primary.focus.width / size.width) * content.width,
+              height: (primary.focus.height / size.height) * content.height,
+            }
+          : null;
 
-        if (termZoom) {
-          zoomCompositor.clear();
-          zoomCompositor.drawFullscreen(primary.surface);
-          if (at.window.inset) {
-            const inset = await surfaceFor(at.window.inset.session, at.wallMs);
-            zoomCompositor.drawInset(
-              inset.surface,
-              at.window.inset,
-              Math.round(resolvedStyle.radius * ss),
-            );
-          }
-          zoomPresenter.presentToSurface(zoomCompositor.surface);
+        // Hold the camera off the window's rounded corners. Clamped hard
+        // into one it would magnify the arc, and the background outside
+        // it, by the zoom factor.
+        const bounds = {
+          x: content.x + radius,
+          y: content.y + radius,
+          width: Math.max(1, content.width - radius * 2),
+          height: Math.max(1, content.height - radius * 2),
+        };
+        outCompositor.drawFullscreen(
+          pres.surface,
+          cameraRect(size, mapped, frame.zoom, bounds),
+        );
+        outCompositor.fadeInPrevious(frame.fadeAlpha);
 
-          // Map the focus from the terminal surface into the presented
-          // frame: the terminal fills the compositor 1:1, and the
-          // presenter insets it by the padding.
-          const content = zoomPresenter.contentRect();
-          const mapped = primary.focus
-            ? {
-                x: content.x + (primary.focus.x / bigW) * content.width,
-                y: content.y + (primary.focus.y / bigH) * content.height,
-                width: (primary.focus.width / bigW) * content.width,
-                height: (primary.focus.height / bigH) * content.height,
-              }
-            : null;
-
-          const eased = 1 + (zoomTarget - 1) * spring(termZoom.progress);
-          const cam = cameraRect({ width: bigW, height: bigH }, mapped, eased);
-          outCtx.drawImage(
-            zoomPresenter.surface,
-            cam.x,
-            cam.y,
-            cam.width,
-            cam.height,
-            0,
-            0,
-            canvasW,
-            canvasH,
-          );
-          yield Buffer.from(outCanvas.data());
-          previousWindowId = at.window.id;
-          continue;
-        }
-
-        compositor.drawFullscreen(primary.surface);
-        if (at.window.inset) {
-          const inset = await surfaceFor(at.window.inset.session, at.wallMs);
-          compositor.drawInset(inset.surface, at.window.inset, resolvedStyle.radius);
-        }
-        // Fade the outgoing scene out over the first moments of this one.
-        const intoScene = outSec - at.window.outStartSec;
-        if (previousWindowId !== null && intoScene < TRANSITION_SEC) {
-          compositor.fadeInPrevious(1 - intoScene / TRANSITION_SEC);
-        }
-
-        previousWindowId = at.window.id;
-        yield presenter.present(compositor.surface);
+        previousWindowId = window.id;
+        yield outCompositor.readPixels();
       }
     }
 

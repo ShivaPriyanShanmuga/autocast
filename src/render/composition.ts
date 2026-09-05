@@ -1,3 +1,4 @@
+import type { Rect } from './camera.js';
 import type { SceneCapture } from '../driver/capture.js';
 import type { DemoScript } from '../schema/demo.js';
 import { clampSpans, MAX_SPEEDUP, type IdleSpan } from './idle.js';
@@ -29,11 +30,12 @@ export interface SceneWindow {
   primary: string;
   inset: InsetSpec | null;
   /**
-   * `focus:` for a scene whose primary is a terminal. Terminal zoom is
-   * compositor-side (we render the grid offline), so unlike browser zoom
-   * it is applied at render time and is losslessly re-renderable.
+   * What this scene frames, if anything. One field for both backends:
+   * the camera does not care whether the rectangle came from a character
+   * grid or from a DOM bounding box, and keeping them on one mechanism is
+   * what stops browser zoom drifting into a second implementation.
    */
-  terminalFocus: string | null;
+  focus: SceneFocus | null;
   /**
    * Piecewise map from output time to wall time. Active stretches run
    * 1:1; idle stretches are compressed. Always monotonic, because a
@@ -41,6 +43,15 @@ export interface SceneWindow {
    */
   segments: TimeSegment[];
 }
+
+/**
+ * A terminal names its target by pattern, because the text it wants is
+ * not on screen yet when the scene is planned; a browser names it by the
+ * box the DOM already measured at capture time.
+ */
+export type SceneFocus =
+  | { kind: 'terminal'; pattern: string }
+  | { kind: 'browser'; box: Rect };
 
 export interface CompositionPlan {
   windows: SceneWindow[];
@@ -90,6 +101,8 @@ export interface PlanOptions {
   idleByScene?: Record<string, IdleSpan[]>;
   maxSpeedup?: number;
   terminalSessions?: TerminalSessions;
+  /** Boxes measured on the acting browser session, keyed by scene id. */
+  browserFocusByScene?: Record<string, Rect>;
 }
 
 export function planComposition(
@@ -194,10 +207,7 @@ export function planComposition(
       primary,
       inset,
       segments,
-      terminalFocus:
-        opts.terminalSessions?.has(primary) && typeof scene.focus === 'string'
-          ? scene.focus
-          : null,
+      focus: resolveFocus(scene, primary, opts),
     });
     cursor += durationSec;
   }
@@ -248,6 +258,24 @@ export function wallClockAt(
  * scene's result can be read, which is exactly when a zoom onto that
  * result belongs.
  */
+function resolveFocus(
+  scene: DemoScript['scenes'][number],
+  primary: string,
+  opts: PlanOptions,
+): SceneFocus | null {
+  if (opts.terminalSessions?.has(primary)) {
+    return typeof scene.focus === 'string' && scene.focus.length > 0
+      ? { kind: 'terminal', pattern: scene.focus }
+      : null;
+  }
+  // The box was measured on the session whose steps ran. If a layout puts
+  // some other session fullscreen, those coordinates describe a surface
+  // the viewer is not looking at.
+  if (primary !== scene.use) return null;
+  const box = opts.browserFocusByScene?.[scene.id];
+  return box ? { kind: 'browser', box } : null;
+}
+
 export function tailProgress(window: SceneWindow, outSec: number): number {
   const lastSegment = window.segments[window.segments.length - 1];
   const bodyEnd = lastSegment?.outEndSec ?? window.outStartSec;
