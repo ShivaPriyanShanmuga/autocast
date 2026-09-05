@@ -395,7 +395,20 @@ scene is imperceptible; drift accumulating across a video is what reads as
 broken. argo and playwright-recast both sync globally and patch in one
 direction only.
 
-### 7.1.1 Idle compression must be narration-aware
+### 7.1.1 Idle compression must never remove deliberate timing
+
+Compression exists to remove dead air. Anything the script *asked for* is not
+dead air, and treating it as such silently undoes the author's pacing.
+
+**Settle pauses are the first case, and it shipped as a bug.** With the idle
+threshold fixed at 700ms and a script settle of 750ms, every deliberate pause
+fell over the threshold and was compressed 8x to roughly 100ms. Half of a
+browser scene was classified as idle. The scene read as rushed, and the fix
+that introduced the settle had been quietly reverted by the feature added
+after it. The threshold is therefore derived from the settle
+(`max(700ms, settle * 1.5)`), never fixed.
+
+**Narration is the second case, and is not yet implemented.**
 
 Levers 1 and 2 pull in opposite directions, and applying them in the wrong
 order produces a worse video than applying neither.

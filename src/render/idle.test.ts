@@ -1,7 +1,13 @@
 import { describe, it, expect } from 'vitest';
 import type { CastLog } from '../backends/terminal/cast.js';
 import type { FrameManifest } from '../backends/browser/frame-store.js';
-import { castIdleSpans, manifestIdleSpans, clampSpans, IDLE_THRESHOLD_MS } from './idle.js';
+import {
+  castIdleSpans,
+  manifestIdleSpans,
+  clampSpans,
+  idleThresholdFor,
+  IDLE_THRESHOLD_MS,
+} from './idle.js';
 
 const EPOCH = 1788570640000;
 
@@ -109,5 +115,31 @@ describe('clampSpans', () => {
 
   it('drops a span trimmed to nothing', () => {
     expect(clampSpans([{ startMs: 1000, endMs: 1000 }], 0, 5000)).toEqual([]);
+  });
+});
+
+describe('idleThresholdFor', () => {
+  it('never classifies a deliberate settle pause as dead air', () => {
+    // The bug this exists to prevent: with settle at 750ms and a fixed
+    // 700ms threshold, EVERY intentional pause was compressed 8x, which
+    // silently undid the pacing the script asked for.
+    const settleMs = 750;
+    const threshold = idleThresholdFor(settleMs);
+    expect(threshold).toBeGreaterThan(settleMs);
+    expect(castIdleSpans(cast([0, 0.75]), threshold)).toEqual([]);
+  });
+
+  it('still compresses waits meaningfully longer than the settle', () => {
+    const threshold = idleThresholdFor(750);
+    expect(castIdleSpans(cast([0, 4]), threshold)).toHaveLength(1);
+  });
+
+  it('falls back to the floor when settle is small', () => {
+    expect(idleThresholdFor(100)).toBe(IDLE_THRESHOLD_MS);
+    expect(idleThresholdFor(0)).toBe(IDLE_THRESHOLD_MS);
+  });
+
+  it('scales with a larger settle', () => {
+    expect(idleThresholdFor(2000)).toBeGreaterThan(idleThresholdFor(750));
   });
 });
