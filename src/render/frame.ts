@@ -1,7 +1,6 @@
 import { createCanvas, type Canvas, type SKRSContext2D } from '@napi-rs/canvas';
 import { ensureFontRegistered, measureCell } from './font.js';
 import type { ScreenState } from './screen.js';
-import type { CellRect } from './find-in-screen.js';
 import type { Theme } from './theme.js';
 
 export interface FrameGeometry {
@@ -128,46 +127,6 @@ export class FrameRenderer {
 
   readPixels(): Buffer {
     return Buffer.from(this.canvas.data());
-  }
-
-  /**
-   * Compose the terminal zoomed toward a region of the grid.
-   *
-   * Lossless, unlike the browser: we render the character grid ourselves,
-   * so zooming re-rasterises glyphs at a larger size rather than
-   * upscaling pixels. The grid is drawn at `zoom` times the canvas and
-   * then cropped around the focus, so text stays sharp at any factor.
-   */
-  composeZoomed(screen: ScreenState, focus: CellRect | null, zoom: number): void {
-    if (zoom <= 1.001 || focus === null) {
-      this.compose(screen);
-      return;
-    }
-
-    const { width, height } = this.geometry;
-    const big = new FrameRenderer(
-      {
-        width: Math.round(width * zoom),
-        height: Math.round(height * zoom),
-        fontSizePx: Math.max(4, Math.round(this.geometry.fontSizePx * zoom)),
-        padding: Math.round(this.geometry.padding * zoom),
-      },
-      this.theme,
-    );
-    big.compose(screen);
-
-    // Centre the crop on the focused cells, clamped inside the frame.
-    const cellW = (big.geometry.width - big.geometry.padding * 2) / Math.max(1, screen.cols);
-    const cellH = (big.geometry.height - big.geometry.padding * 2) / Math.max(1, screen.rows);
-    const cx = big.geometry.padding + (focus.col + focus.width / 2) * cellW;
-    const cy = big.geometry.padding + (focus.row + focus.height / 2) * cellH;
-
-    const sx = Math.max(0, Math.min(cx - width / 2, big.geometry.width - width));
-    const sy = Math.max(0, Math.min(cy - height / 2, big.geometry.height - height));
-
-    this.ctx.fillStyle = this.theme.background;
-    this.ctx.fillRect(0, 0, width, height);
-    this.ctx.drawImage(big.surface, sx, sy, width, height, 0, 0, width, height);
   }
 
   render(screen: ScreenState): Buffer {

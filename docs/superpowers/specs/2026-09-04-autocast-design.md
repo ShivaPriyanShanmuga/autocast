@@ -444,8 +444,21 @@ re-renders without re-running anything.
   Humanized *and* deterministic.
 - **Cursor** — headless has no cursor, so we draw one. Minimum-jerk eased paths
   between targets with slight overshoot-and-settle; clicks get a ring pulse.
+- **Zoom is a camera, not a crop.** A terminal is rendered once at the zoom
+  factor and viewed through a moving rectangle (`src/render/camera.ts`).
+  Re-rendering at a larger font per frame was tried first and jittered: the
+  font size rounds to whole pixels, so an animating zoom snaps 16px, 17px,
+  18px. A rectangle moves in sub-pixel steps.
+
+  The camera is also what makes panning possible. Following the mouse, or
+  drifting across a wide terminal, is the rectangle moving — not a second
+  mechanism competing with a cropping one. Only the framing policy is
+  missing, not the machinery.
+
 - **Zoom** — `focus: <selector>` for explicit framing, and `style.zoom.auto`
-  for automatic zoom on click targets. On the browser backend this is applied
+  for automatic zoom on click targets. On a terminal, `focus:` is a PATTERN
+  matched against the character grid rather than a selector, and the zoom is
+  lossless because we rasterise the grid ourselves. On the browser backend this is applied
   in-browser via `Emulation.setPageScaleFactor` (section 4.5), so it is the one
   effect here that is NOT compositor-side; on the terminal it is a pure
   re-render. **We frame better than a screen recorder can.** Screen Studio and its peers infer intent from pixels: they

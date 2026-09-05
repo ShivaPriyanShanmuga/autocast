@@ -4,6 +4,7 @@ import { BrowserFrameRenderer, composeBrowserWithCursor } from '../render/browse
 import type { CursorKeyframe, ZoomKeyframe } from '../render/cursor.js';
 import { Presenter } from '../render/present.js';
 import { resolveStyle } from '../render/style.js';
+import type { Canvas } from '@napi-rs/canvas';
 import { rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import {
@@ -20,6 +21,7 @@ import { browserFrameCount, resampleManifest } from '../render/resample.js';
 import { CastPlayer } from '../render/cast-player.js';
 import { planComposition, wallClockAt, tailProgress } from '../render/composition.js';
 import { findInScreen } from '../render/find-in-screen.js';
+import { cameraRect, cellRectToPixels, type Rect } from '../render/camera.js';
 import { spring } from '../render/zoom.js';
 import { LayoutCompositor, TRANSITION_SEC } from '../render/layout.js';
 import {
@@ -208,13 +210,24 @@ export async function renderDemo(
 
     // One live source per session, all advanced in lockstep so a layout
     // can call on either at any frame.
+    const zoomedTerminals = new Set(
+      plan.windows.filter((w) => w.terminalFocus).map((w) => w.primary),
+    );
+    const zoomTarget = script.style?.zoom?.scale ?? 1.8;
+
     const players = new Map<string, CastPlayer>();
     const terminalRenderers = new Map<string, FrameRenderer>();
     for (const [id, cast] of Object.entries(capture.casts)) {
       players.set(id, new CastPlayer(cast, DEFAULT_THEME));
+      // Render at the zoom factor so the camera has real pixels to crop
+      // into; a demo that never zooms this terminal pays nothing.
+      const ss = zoomedTerminals.has(id) ? zoomTarget : 1;
       terminalRenderers.set(
         id,
-        new FrameRenderer(fitGeometry(cast.width, cast.height, canvasW, canvasH), DEFAULT_THEME),
+        new FrameRenderer(
+          fitGeometry(cast.width, cast.height, Math.round(canvasW * ss), Math.round(canvasH * ss)),
+          DEFAULT_THEME,
+        ),
       );
     }
 
@@ -246,7 +259,7 @@ export async function renderDemo(
       sessionId: string,
       wallMs: number,
       terminalZoom?: { pattern: string; progress: number },
-    ) => {
+    ): Promise<{ surface: Canvas; camera?: Rect }> => {
       const player = players.get(sessionId);
       if (player) {
         const cast = capture.casts[sessionId]!;
@@ -255,17 +268,19 @@ export async function renderDemo(
         if (tSec >= player.position) await player.advanceTo(tSec);
         const renderer = terminalRenderers.get(sessionId)!;
         const screen = player.screen();
+        renderer.compose(screen);
 
-        if (terminalZoom) {
-          // Lossless: the grid is re-rasterised at the zoomed size rather
-          // than upscaled, so the text stays sharp.
-          const target = script.style?.zoom?.scale ?? 1.8;
-          const eased = 1 + (target - 1) * spring(terminalZoom.progress);
-          renderer.composeZoomed(screen, findInScreen(screen, terminalZoom.pattern), eased);
-        } else {
-          renderer.compose(screen);
-        }
-        return renderer.surface;
+        if (!terminalZoom) return { surface: renderer.surface };
+
+        // Move a camera over the already-rendered surface. Sub-pixel and
+        // smooth, where re-rendering at a rounded font size jittered.
+        const eased = 1 + (zoomTarget - 1) * spring(terminalZoom.progress);
+        const cell = findInScreen(screen, terminalZoom.pattern);
+        const focus = cell ? cellRectToPixels(renderer.geometry, screen, cell) : null;
+        return {
+          surface: renderer.surface,
+          camera: cameraRect(renderer.geometry, focus, eased),
+        };
       }
 
       const manifest = capture.frames[sessionId];
@@ -291,7 +306,7 @@ export async function renderDemo(
         resolvedStyle.cursorSize,
         resolvedStyle.motionBlurCursor,
       );
-      return browser.surface;
+      return { surface: browser.surface };
     };
 
     const totalFrames = Math.max(1, Math.ceil(plan.totalSec * fps));
@@ -314,13 +329,11 @@ export async function renderDemo(
         const termZoom = at.window.terminalFocus
           ? { pattern: at.window.terminalFocus, progress: tailProgress(at.window, outSec) }
           : undefined;
-        compositor.drawFullscreen(await surfaceFor(at.window.primary, at.wallMs, termZoom));
+        const primary = await surfaceFor(at.window.primary, at.wallMs, termZoom);
+        compositor.drawFullscreen(primary.surface, primary.camera);
         if (at.window.inset) {
-          compositor.drawInset(
-            await surfaceFor(at.window.inset.session, at.wallMs),
-            at.window.inset,
-            resolvedStyle.radius,
-          );
+          const inset = await surfaceFor(at.window.inset.session, at.wallMs);
+          compositor.drawInset(inset.surface, at.window.inset, resolvedStyle.radius);
         }
         // Fade the outgoing scene out over the first moments of this one.
         const intoScene = outSec - at.window.outStartSec;
