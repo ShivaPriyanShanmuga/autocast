@@ -65,7 +65,13 @@ export class FrameRenderer {
     this.fontSpec = metrics.fontSpec;
   }
 
-  render(screen: ScreenState): Buffer {
+  /** The composed frame, for a compositor to draw from. */
+  get surface(): Canvas {
+    return this.canvas;
+  }
+
+  /** Compose onto the internal canvas; read with render() or surface. */
+  compose(screen: ScreenState): void {
     const { ctx, theme, geometry } = this;
 
     // Full clear every frame: without it, a shrinking screen would leave
@@ -117,6 +123,10 @@ export class FrameRenderer {
       }
     }
 
+  }
+
+  render(screen: ScreenState): Buffer {
+    this.compose(screen);
     return Buffer.from(this.canvas.data());
   }
 }

@@ -110,15 +110,28 @@ describe('renderDemo with a browser session', () => {
     expect(probe.frames).toBe(report.frames);
   }, 240000);
 
-  it('refuses a mixed demo with a clear message', async () => {
-    const script = load('fixtures/terminal/demo.yaml');
-    script.sessions.web = { backend: 'browser' };
-    // The guard runs before capture, so this must be fast — no browser
-    // launch, no terminal session.
-    const t0 = Date.now();
-    await expect(renderDemo(script, { outputPath: join(dir, 'mixed.mp4') })).rejects.toThrow(
-      /Phase 3/i,
-    );
-    expect(Date.now() - t0).toBeLessThan(3000);
-  }, 30000);
+});
+
+describe('renderDemo with mixed sessions', () => {
+  it('renders the flagship as one continuous mp4 and holds the step-less scene', async () => {
+    const script = load('fixtures/flagship/demo.yaml');
+    const out = join(dir, 'flagship.mp4');
+    const report = await renderDemo(script, { outputPath: out });
+
+    expect(report.ok, JSON.stringify(report.scenes, null, 2)).toBe(true);
+    expect(report.scenes.map((s) => s.id)).toEqual(['boot', 'order', 'logs']);
+    expect(existsSync(out)).toBe(true);
+
+    const probe = await probeVideo(out);
+    expect(probe.codec).toBe('h264');
+    expect(probe.width).toBe(1280);
+    expect(probe.height).toBe(720);
+    expect(probe.pixFmt).toBe('yuv420p');
+    expect(probe.frames).toBe(report.frames);
+    expect(report.frames).toBeGreaterThan(90);
+
+    // The `logs` scene has no steps; without a minimum hold the video
+    // would be barely longer than the two acting scenes.
+    expect(report.durationSec).toBeGreaterThan(4);
+  }, 300000);
 });

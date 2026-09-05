@@ -41,6 +41,11 @@ export class BrowserFrameRenderer {
     return this.ctx;
   }
 
+  /** The composed frame, for a compositor to draw from. */
+  get surface(): Canvas {
+    return this.canvas;
+  }
+
   private async imageFor(path: string): Promise<Image | null> {
     if (this.cachedPath === path && this.cachedImage) return this.cachedImage;
     try {

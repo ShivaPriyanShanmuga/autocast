@@ -155,3 +155,32 @@ describe('Phase 2 exit criteria', () => {
     }
   }, 300000);
 });
+
+describe('Phase 3 exit criteria', () => {
+  it('renders terminal, browser and inset as one continuous artifact', async () => {
+    const { mkdtempSync, rmSync, existsSync } = await import('node:fs');
+    const { tmpdir } = await import('node:os');
+    const { join } = await import('node:path');
+    const { probeVideo } = await import('../render/encoder.js');
+
+    const dir = mkdtempSync(join(tmpdir(), 'autocast-p3-'));
+    try {
+      const out = join(dir, 'flagship.mp4');
+      const c = captureIO();
+      const code = await runCli(['render', 'fixtures/flagship/demo.yaml', '--out', out], c.io);
+
+      expect(code, c.out() + c.err()).toBe(0);
+      expect(existsSync(out)).toBe(true);
+
+      const probe = await probeVideo(out);
+      // One canvas throughout: the ABSENCE of a resolution change is the
+      // exit criterion.
+      expect(probe.width).toBe(1280);
+      expect(probe.height).toBe(720);
+      expect(probe.codec).toBe('h264');
+      expect(probe.frames).toBeGreaterThan(90);
+    } finally {
+      rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+    }
+  }, 300000);
+});

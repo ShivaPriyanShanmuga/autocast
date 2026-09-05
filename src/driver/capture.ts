@@ -51,7 +51,10 @@ export async function captureDemo(
 ): Promise<CaptureArtifact> {
   const now = opts.now ?? (() => Date.now());
   const typingSpeedMs = toMs(script.defaults?.typing_speed, 65);
-  const settleMs = toMs(script.defaults?.settle, 400);
+  // 400ms was shorter than the cursor's 0.7s travel, so the pointer
+  // never arrived before the next action fired and everything read as
+  // rushed. Keep this at or above the cursor travel time.
+  const settleMs = toMs(script.defaults?.settle, 750);
   const framesRoot = opts.framesRoot ?? join('.autocast', 'frames');
 
   // Insertion order is declaration order; teardown reverses it (spec 4.6).
