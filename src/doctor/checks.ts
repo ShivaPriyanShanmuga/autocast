@@ -104,16 +104,27 @@ const nodePtyCheck: Check = {
   async run() {
     try {
       const version = (requireCjs('node-pty/package.json') as { version: string }).version;
-      requireCjs('node-pty'); // loading the native binding is the real test
-      return { name: 'node-pty', status: 'ok', detail: version };
+      requireCjs('node-pty');
+
+      // Loading the binding is NOT enough: on macOS CI the module loaded
+      // cleanly and every spawn then failed with "posix_spawnp failed".
+      // Actually opening a terminal is the only honest check.
+      const { openTerminalSession } = await import('../backends/terminal/session.js');
+      const { resolveShell } = await import('../backends/terminal/shell.js');
+      const session = await openTerminalSession({ cols: 20, rows: 4 });
+      await session.dispose();
+
+      return { name: 'node-pty', status: 'ok', detail: `${version} (${resolveShell()})` };
     } catch (error) {
       return {
         name: 'node-pty',
         status: 'fail',
-        detail: `native module failed to load: ${
-          error instanceof Error ? error.message : String(error)
+        detail: `cannot open a terminal: ${
+          error instanceof Error ? (error.message.split('\n')[0] ?? error.message) : String(error)
         }`,
         hint: [
+          '    autocast drives a real PTY for terminal scenes.',
+          '    If the message above names a shell, set SHELL to one that exists.',
           '    node-pty ships prebuilt binaries for common platforms.',
           '    If yours is not covered, it must be built from source:',
           '    Windows:  install Visual Studio Build Tools (C++ workload)',

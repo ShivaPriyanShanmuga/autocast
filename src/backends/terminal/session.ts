@@ -1,6 +1,7 @@
 import { createRequire } from 'node:module';
 import { CastRecorder, type CastLog } from './cast.js';
 import { killTree, isProcessAlive } from './kill-tree.js';
+import { cleanEnv, resolveShell } from './shell.js';
 
 // node-pty and @xterm/headless are CommonJS; createRequire keeps their
 // types honest without fighting ESM interop.
@@ -50,8 +51,6 @@ export interface TerminalSession {
   dispose(): Promise<void>;
 }
 
-const DEFAULT_SHELL =
-  process.platform === 'win32' ? 'cmd.exe' : (process.env.SHELL ?? '/bin/bash');
 
 export async function openTerminalSession(
   opts: TerminalSessionOptions = {},
@@ -76,13 +75,34 @@ export async function openTerminalSession(
 
   const recorder = new CastRecorder(cols, rows, now);
 
-  const proc = pty.spawn(DEFAULT_SHELL, [], {
-    name: 'xterm-256color',
-    cols,
-    rows,
-    cwd: opts.cwd ?? process.cwd(),
-    env: { ...process.env, ...opts.env },
-  });
+  const shell = resolveShell();
+  const cwd = opts.cwd ?? process.cwd();
+
+  let proc: PtyProcess;
+  try {
+    proc = pty.spawn(shell, [], {
+      name: 'xterm-256color',
+      cols,
+      rows,
+      cwd,
+      env: cleanEnv(opts.env),
+    });
+  } catch (error) {
+    // node-pty reports only "posix_spawnp failed", which names neither
+    // the shell nor the reason. Say what we actually tried.
+    const detail = error instanceof Error ? error.message : String(error);
+    throw new Error(
+      `could not start a terminal: ${detail}
+` +
+        `  shell:    ${shell}
+` +
+        `  cwd:      ${cwd}
+` +
+        `  platform: ${process.platform} ${process.arch}
+` +
+        '  Set SHELL to a shell that exists, or check the session cwd.',
+    );
+  }
 
   let exited: number | null = null;
   let disposed = false;
