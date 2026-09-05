@@ -23,6 +23,29 @@ function jpeg(name: string, colour: string, w = 320, h = 200): string {
 
 const geometry = { width: 640, height: 360 };
 
+/** Where the darkest pixel is — the cursor's outline on a white page. */
+function darkestPoint(rgba: Buffer, w: number, h: number): { x: number; y: number } {
+  let best = 256;
+  let at = { x: -1, y: -1 };
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const v = rgba[(y * w + x) * 4]!;
+      if (v < best) {
+        best = v;
+        at = { x, y };
+      }
+    }
+  }
+  return at;
+}
+
+/** How many pixels the cursor darkened. */
+function inkedPixels(rgba: Buffer): number {
+  let n = 0;
+  for (let i = 0; i < rgba.length; i += 4) if (rgba[i]! < 200) n++;
+  return n;
+}
+
 describe('BrowserFrameRenderer', () => {
   it('returns an RGBA buffer of exactly width * height * 4', async () => {
     const r = new BrowserFrameRenderer(geometry, DEFAULT_THEME);
@@ -145,6 +168,37 @@ describe('composeBrowserWithCursor', () => {
     await composeBrowserWithCursor(b, path, pointers, 1.0);
 
     expect(Buffer.compare(early, b.readPixels())).not.toBe(0);
+  });
+
+  it('places the cursor where the page was actually drawn', async () => {
+    // The cursor track is in CSS pixels. When the frame is composed onto
+    // a surface larger than the viewport — which is what supersampling
+    // for a zoom does — the page is scaled up, so the cursor must scale
+    // with it or it drifts up and to the left of what it is pointing at.
+    const path = jpeg('cursor-fit.jpg', '#ffffff', 320, 200);
+    const big = new BrowserFrameRenderer({ width: 640, height: 400 }, DEFAULT_THEME);
+    await composeBrowserWithCursor(big, path, [{ tSec: 0, at: { x: 80, y: 50 } }], 0);
+
+    // The page fills 640x400 at 2x, so (80, 50) must land near (160, 100)
+    // and nowhere near the (80, 50) an unscaled cursor would land at.
+    // A few pixels of slack: the darkest pixel is on the arrow's outline,
+    // not exactly on its tip.
+    const at = darkestPoint(big.readPixels(), 640, 400);
+    expect(Math.hypot(at.x - 160, at.y - 100)).toBeLessThan(6);
+    expect(Math.hypot(at.x - 80, at.y - 50)).toBeGreaterThan(50);
+  });
+
+  it('scales the cursor with the page, so it is not shrunk by supersampling', async () => {
+    const path = jpeg('cursor-size.jpg', '#ffffff', 320, 200);
+    const one = new BrowserFrameRenderer({ width: 320, height: 200 }, DEFAULT_THEME);
+    await composeBrowserWithCursor(one, path, [{ tSec: 0, at: { x: 80, y: 50 } }], 0);
+    const two = new BrowserFrameRenderer({ width: 640, height: 400 }, DEFAULT_THEME);
+    await composeBrowserWithCursor(two, path, [{ tSec: 0, at: { x: 80, y: 50 } }], 0);
+
+    // Four times the pixels at twice the scale, give or take antialiasing.
+    const ratio = inkedPixels(two.readPixels()) / inkedPixels(one.readPixels());
+    expect(ratio).toBeGreaterThan(3);
+    expect(ratio).toBeLessThan(5);
   });
 
   it('tolerates an empty pointer track', async () => {

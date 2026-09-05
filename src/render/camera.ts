@@ -27,52 +27,29 @@ export function cameraRect(
   surface: { width: number; height: number },
   focus: Rect | null,
   zoom: number,
-  bounds?: Rect,
 ): Rect {
   const z = Math.max(1, zoom);
   const width = surface.width / z;
   const height = surface.height / z;
 
-  // Without bounds the whole surface is fair game. With them — the window
-  // interior, inside the presentation padding — zooming moves INTO the
-  // screen instead of magnifying the frame around it. At 1.7x an unbounded
-  // camera turns a 56px padding band into a 95px one, which reads as a
-  // mistake rather than as a zoom.
-  const b = bounds ?? { x: 0, y: 0, width: surface.width, height: surface.height };
-  const cx = focus ? focus.x + focus.width / 2 : b.x + b.width / 2;
-  const cy = focus ? focus.y + focus.height / 2 : b.y + b.height / 2;
+  if (focus === null || z === 1) {
+    return { x: (surface.width - width) / 2, y: (surface.height - height) / 2, width, height };
+  }
 
-  return {
-    x: clampAxis(cx, width, b.x, b.width, surface.width),
-    y: clampAxis(cy, height, b.y, b.height, surface.height),
-    width,
-    height,
-  };
-}
+  const cx = focus.x + focus.width / 2;
+  const cy = focus.y + focus.height / 2;
 
-/**
- * Where one axis of the camera sits.
- *
- * Continuous across the point where the camera first fits inside the
- * bounds: at exactly that size the two branches agree, so a ramping zoom
- * never snaps as it crosses over.
- */
-function clampAxis(
-  center: number,
-  size: number,
-  boundStart: number,
-  boundSize: number,
-  surfaceSize: number,
-): number {
-  const want =
-    size <= boundSize
-      ? Math.max(boundStart, Math.min(center - size / 2, boundStart + boundSize - size))
-      : // Too wide to fit within the bounds; the widest honest framing is
-        // the bounds centred, which is also what the branch above gives
-        // as size approaches boundSize.
-        boundStart + (boundSize - size) / 2;
-  // The surface is still the hard limit: past it there are no pixels.
-  return Math.max(0, Math.min(want, surfaceSize - size));
+  // The surface is the only limit. An earlier version also clamped the
+  // camera inside the window, to keep the presentation background out of
+  // frame while zoomed. That was the wrong goal and it showed: the extra
+  // constraint swung the camera around as the zoom ramped, so the move
+  // bounced, and framing a line near an edge shoved the view sideways and
+  // clipped content. Zooming means scaling the plane about a point. If
+  // some background comes along with it, that is what zooming into a
+  // screen looks like.
+  const x = Math.max(0, Math.min(cx - width / 2, surface.width - width));
+  const y = Math.max(0, Math.min(cy - height / 2, surface.height - height));
+  return { x, y, width, height };
 }
 
 /** Where a cell region sits in the rendered surface, in pixels. */

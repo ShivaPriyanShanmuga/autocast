@@ -1,6 +1,6 @@
-import { tailProgress, wallClockAt, type CompositionPlan, type SceneWindow } from './composition.js';
+import { wallClockAt, type CompositionPlan, type SceneWindow } from './composition.js';
 import { TRANSITION_SEC } from './layout.js';
-import { spring } from './zoom.js';
+import { zoomScaleAt } from './zoom.js';
 
 export interface FramePlan {
   window: SceneWindow;
@@ -37,9 +37,10 @@ export function planFrame(
   const at = wallClockAt(plan, outSec);
   if (!at) return null;
 
-  const zoom = at.window.focus
-    ? Math.max(1, 1 + (zoomScale - 1) * spring(tailProgress(at.window, outSec)))
-    : 1;
+  const zoom =
+    at.window.zoomStartSec === null
+      ? 1
+      : zoomScaleAt(outSec - at.window.zoomStartSec, zoomScale);
 
   const intoScene = outSec - at.window.outStartSec;
   const fadeAlpha =

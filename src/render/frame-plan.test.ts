@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { planFrame } from './frame-plan.js';
 import { TRANSITION_SEC } from './layout.js';
+import { ZOOM_IN_SEC, ZOOM_HOLD_SEC, ZOOM_SEC } from './zoom.js';
 import type { CompositionPlan, SceneWindow } from './composition.js';
 
 function window(over: Partial<SceneWindow> & { id: string }): SceneWindow {
@@ -11,6 +12,7 @@ function window(over: Partial<SceneWindow> & { id: string }): SceneWindow {
     primary: over.id,
     inset: null,
     focus: null,
+    zoomStartSec: null,
     wallStartMs: 0,
     wallEndMs: 1000,
     // Body runs to 1s before the end; that last second is the tail.
@@ -65,45 +67,50 @@ describe('planFrame', () => {
       outStartSec: 3,
       outEndSec: 6,
       focus: { kind: 'terminal', pattern: '/POST/' },
+      zoomStartSec: 4,
     });
     const f = planFrame(plan([a, zb]), 3.01, 'a', 1.7);
     expect(f!.fadeAlpha).toBeGreaterThan(0.9);
   });
 
-  it('holds zoom at 1 for a window with no focus', () => {
+  it('holds zoom at 1 for a window that does not zoom', () => {
     for (const t of [0.1, 1.5, 2.9]) {
       expect(planFrame(plan([a]), t, 'a', 1.7)!.zoom).toBe(1);
     }
   });
 
-  it('eases zoom from 1 up to the target across the tail', () => {
+  it('runs the whole zoom envelope, ending back at 1 before the cut', () => {
+    // Zoom in, hold long enough to read it, then pull back OUT. Leaving a
+    // scene at full zoom made the crossfade do the pulling back, which
+    // reads as a jump rather than as a camera move.
+    const zoomStartSec = 4;
     const zb = window({
       id: 'b',
       outStartSec: 3,
-      outEndSec: 6,
+      outEndSec: zoomStartSec + ZOOM_SEC + 1,
       focus: { kind: 'browser', box: { x: 0, y: 0, width: 10, height: 10 } },
+      zoomStartSec,
     });
     const p = plan([a, zb]);
-    // Body runs 3s..5s; the tail is 5s..6s.
-    expect(planFrame(p, 4, 'b', 1.7)!.zoom).toBe(1);
-    expect(planFrame(p, 5.99, 'b', 1.7)!.zoom).toBeCloseTo(1.7, 2);
-    // A spring overshoots and settles back; that is the whole reason it
-    // reads as motion rather than a slide. Bound the overshoot instead of
-    // forbidding it.
-    const half = planFrame(p, 5.5, 'b', 1.7)!.zoom;
-    expect(half).toBeGreaterThan(1);
-    expect(half).toBeLessThan(1.7 * 1.1);
+    const at = (t: number) => planFrame(p, t, 'b', 1.7)!.zoom;
+
+    expect(at(3.5)).toBe(1);
+    expect(at(zoomStartSec)).toBe(1);
+    expect(at(zoomStartSec + ZOOM_IN_SEC + ZOOM_HOLD_SEC / 2)).toBeCloseTo(1.7, 5);
+    expect(at(zoomStartSec + ZOOM_SEC)).toBe(1);
+    expect(at(zoomStartSec + ZOOM_SEC + 0.5)).toBe(1);
   });
 
   it('never zooms below 1, whatever the easing does', () => {
     const zb = window({
       id: 'b',
       outStartSec: 3,
-      outEndSec: 6,
+      outEndSec: 3 + ZOOM_SEC + 2,
       focus: { kind: 'terminal', pattern: 'x' },
+      zoomStartSec: 4,
     });
     const p = plan([a, zb]);
-    for (let t = 3; t < 6; t += 0.05) {
+    for (let t = 3; t < 3 + ZOOM_SEC + 2; t += 0.05) {
       expect(planFrame(p, t, 'b', 1.7)!.zoom).toBeGreaterThanOrEqual(1);
     }
   });

@@ -421,19 +421,7 @@ export async function renderDemo(
             }
           : null;
 
-        // Hold the camera off the window's rounded corners. Clamped hard
-        // into one it would magnify the arc, and the background outside
-        // it, by the zoom factor.
-        const bounds = {
-          x: content.x + radius,
-          y: content.y + radius,
-          width: Math.max(1, content.width - radius * 2),
-          height: Math.max(1, content.height - radius * 2),
-        };
-        outCompositor.drawFullscreen(
-          pres.surface,
-          cameraRect(size, mapped, frame.zoom, bounds),
-        );
+        outCompositor.drawFullscreen(pres.surface, cameraRect(size, mapped, frame.zoom));
         outCompositor.fadeInPrevious(frame.fadeAlpha);
 
         previousWindowId = window.id;
