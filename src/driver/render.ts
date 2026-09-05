@@ -4,6 +4,9 @@ import { BrowserFrameRenderer } from '../render/browser-frame.js';
 import { cursorAt, drawCursor } from '../render/cursor.js';
 import { encodeFrames } from '../render/encoder.js';
 import { browserFrameCount, resampleManifest } from '../render/resample.js';
+import { CastPlayer } from '../render/cast-player.js';
+import { planComposition, wallClockAt } from '../render/composition.js';
+import { LayoutCompositor } from '../render/layout.js';
 import { fitGeometry, FrameRenderer } from '../render/frame.js';
 import { frameCount, replayCast } from '../render/replay.js';
 import { DEFAULT_THEME } from '../render/theme.js';
@@ -33,18 +36,11 @@ export async function renderDemo(
   const [canvasW, canvasH] = script.output.canvas;
   const fps = script.output.fps;
 
-  // Guard BEFORE capturing: running a capture only to discard it would
-  // waste a browser launch and a terminal session.
-  const kinds = new Set(Object.values(script.sessions).map((s) => s.backend));
-  if (kinds.size > 1) {
-    throw new Error(
-      'this demo mixes terminal and browser sessions, which composes in Phase 3. ' +
-        'Phase 2 renders a demo whose sessions are all one kind.',
-    );
-  }
-  if (Object.keys(script.sessions).length > 1) {
-    throw new Error('this demo declares more than one session, which composes in Phase 3.');
-  }
+  // More than one session, or any explicit layout, needs the composed
+  // path; a single session keeps the simpler phase 1/2 fast paths.
+  const needsComposition =
+    Object.keys(script.sessions).length > 1 ||
+    script.scenes.some((s) => s.layout !== undefined);
 
   const capture = await captureDemo(script);
 
@@ -57,6 +53,99 @@ export async function renderDemo(
       ...(a.detail === undefined ? {} : { detail: a.detail }),
     })),
   }));
+
+  if (needsComposition) {
+    const plan = planComposition(script, capture.scenes);
+    const compositor = new LayoutCompositor(canvasW, canvasH, DEFAULT_THEME);
+
+    // One live source per session, all advanced in lockstep so a layout
+    // can call on either at any frame.
+    const players = new Map<string, CastPlayer>();
+    const terminalRenderers = new Map<string, FrameRenderer>();
+    for (const [id, cast] of Object.entries(capture.casts)) {
+      players.set(id, new CastPlayer(cast, DEFAULT_THEME));
+      terminalRenderers.set(
+        id,
+        new FrameRenderer(fitGeometry(cast.width, cast.height, canvasW, canvasH), DEFAULT_THEME),
+      );
+    }
+
+    const browsers = new Map<string, BrowserFrameRenderer>();
+    const browserTicks = new Map<string, ReturnType<typeof resampleManifest>>();
+    for (const [id, manifest] of Object.entries(capture.frames)) {
+      browsers.set(
+        id,
+        new BrowserFrameRenderer({ width: canvasW, height: canvasH }, DEFAULT_THEME),
+      );
+      browserTicks.set(id, resampleManifest(manifest, { fps, tailMs: 0 }));
+    }
+
+    /** Draw one session's state at a wall-clock instant onto its canvas. */
+    const surfaceFor = async (sessionId: string, wallMs: number) => {
+      const player = players.get(sessionId);
+      if (player) {
+        const cast = capture.casts[sessionId]!;
+        const tSec = Math.max(0, (wallMs - cast.startedAtMs) / 1000);
+        // Forward-only; a hold can ask for the same instant repeatedly.
+        if (tSec >= player.position) await player.advanceTo(tSec);
+        const renderer = terminalRenderers.get(sessionId)!;
+        renderer.compose(player.screen());
+        return renderer.surface;
+      }
+
+      const manifest = capture.frames[sessionId];
+      const browser = browsers.get(sessionId);
+      if (!manifest || !browser) {
+        throw new Error(`no captured source for session "${sessionId}"`);
+      }
+      const firstSec = manifest.frames[0]?.tSec ?? 0;
+      const tSec = Math.max(0, wallMs / 1000 - firstSec);
+      const ticks = browserTicks.get(sessionId)!;
+      // Last tick whose time has passed; hold it otherwise (spec 4.5.1).
+      let chosen = ticks[0] ?? null;
+      for (const tick of ticks) {
+        if (tick.tSec <= tSec) chosen = tick;
+        else break;
+      }
+      await browser.compose(chosen?.source?.path ?? null);
+      return browser.surface;
+    };
+
+    const totalFrames = Math.max(1, Math.ceil(plan.totalSec * fps));
+
+    async function* composedFrames(): AsyncGenerator<Buffer> {
+      for (let i = 0; i < totalFrames; i++) {
+        const outSec = (i + 0.5) / fps;
+        const at = wallClockAt(plan, outSec);
+        if (!at) continue;
+
+        compositor.clear();
+        compositor.drawFullscreen(await surfaceFor(at.window.primary, at.wallMs));
+        if (at.window.inset) {
+          compositor.drawInset(
+            await surfaceFor(at.window.inset.session, at.wallMs),
+            at.window.inset,
+          );
+        }
+        yield compositor.readPixels();
+      }
+    }
+
+    const encoded = await encodeFrames(composedFrames(), {
+      width: canvasW,
+      height: canvasH,
+      fps,
+      outputPath,
+    });
+
+    return {
+      ok: scenes.every((s) => s.ok),
+      outputPath,
+      scenes,
+      frames: encoded.frames,
+      durationSec: Number(plan.totalSec.toFixed(2)),
+    };
+  }
 
   const frameIds = Object.keys(capture.frames);
   if (frameIds.length > 0) {
