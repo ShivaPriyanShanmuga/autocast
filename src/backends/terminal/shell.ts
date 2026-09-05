@@ -44,3 +44,49 @@ export function cleanEnv(extra?: Record<string, string>): Record<string, string>
   }
   return out;
 }
+
+export interface SpawnHelperStatus {
+  /** Only macOS uses the helper; elsewhere this is always satisfied. */
+  required: boolean;
+  path: string | null;
+  executable: boolean;
+}
+
+/**
+ * node-pty spawns a separate `spawn-helper` binary on macOS only
+ * (`helperPath = native.dir + '/spawn-helper'` in its unixTerminal).
+ * Windows and Linux never touch it.
+ *
+ * npm does not reliably preserve the executable bit when extracting a
+ * package tarball, so the helper is often present but not runnable — and
+ * node-pty then reports a bare "posix_spawnp failed." that names nothing.
+ * This turns that into something actionable.
+ */
+export async function checkSpawnHelper(
+  platform: NodeJS.Platform = process.platform,
+  arch: string = process.arch,
+): Promise<SpawnHelperStatus> {
+  if (platform !== 'darwin') {
+    return { required: false, path: null, executable: true };
+  }
+
+  const { createRequire } = await import('node:module');
+  const { dirname, join } = await import('node:path');
+  const { access, constants } = await import('node:fs/promises');
+
+  const require = createRequire(import.meta.url);
+  let path: string;
+  try {
+    const pkg = require.resolve('node-pty/package.json');
+    path = join(dirname(pkg), 'prebuilds', `${platform}-${arch}`, 'spawn-helper');
+  } catch {
+    return { required: true, path: null, executable: false };
+  }
+
+  try {
+    await access(path, constants.X_OK);
+    return { required: true, path, executable: true };
+  } catch {
+    return { required: true, path, executable: false };
+  }
+}

@@ -113,9 +113,23 @@ describe('renderDemo with a browser session', () => {
 
 });
 
+
+/**
+ * The flagship starts a server on a fixed port from inside the demo, so
+ * two tests rendering it concurrently collide on that port. Vitest runs
+ * files in parallel, so every flagship render needs its own port.
+ */
+function loadFlagshipOnPort(port: number) {
+  const { writeFileSync, readFileSync: read } = require('node:fs') as typeof import('node:fs');
+  const yaml = read('fixtures/flagship/demo.yaml', 'utf8').replace(/34700/g, String(port));
+  const path = join(dir, `flagship-${port}.yaml`);
+  writeFileSync(path, yaml);
+  return load(path);
+}
+
 describe('renderDemo with mixed sessions', () => {
   it('renders the flagship as one continuous mp4 and holds the step-less scene', async () => {
-    const script = load('fixtures/flagship/demo.yaml');
+    const script = loadFlagshipOnPort(34710);
     const out = join(dir, 'flagship.mp4');
     const report = await renderDemo(script, { outputPath: out });
 
@@ -139,7 +153,7 @@ describe('renderDemo with mixed sessions', () => {
 
 describe('pacing', () => {
   it('still renders a correct flagship once idle compression and fades apply', async () => {
-    const script = load('fixtures/flagship/demo.yaml');
+    const script = loadFlagshipOnPort(34711);
     const out = join(dir, 'paced.mp4');
     const report = await renderDemo(script, { outputPath: out });
 
