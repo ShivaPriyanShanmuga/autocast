@@ -6,6 +6,7 @@ import { parseSource } from '../validate/parse.js';
 import { checkSchema } from '../validate/schema-check.js';
 import { probeVideo } from '../render/encoder.js';
 import { renderDemo, formatRenderReport } from './render.js';
+import { SCENE_TAIL_SEC } from '../render/composition.js';
 
 const dir = mkdtempSync(join(tmpdir(), 'autocast-render-'));
 afterAll(() =>
@@ -133,5 +134,27 @@ describe('renderDemo with mixed sessions', () => {
     // The `logs` scene has no steps; without a minimum hold the video
     // would be barely longer than the two acting scenes.
     expect(report.durationSec).toBeGreaterThan(4);
+  }, 300000);
+});
+
+describe('pacing', () => {
+  it('still renders a correct flagship once idle compression and fades apply', async () => {
+    const script = load('fixtures/flagship/demo.yaml');
+    const out = join(dir, 'paced.mp4');
+    const report = await renderDemo(script, { outputPath: out });
+
+    expect(report.ok, JSON.stringify(report.scenes, null, 2)).toBe(true);
+    expect(report.scenes.map((s) => s.id)).toEqual(['boot', 'order', 'logs']);
+    expect(existsSync(out)).toBe(true);
+
+    const probe = await probeVideo(out);
+    expect(probe.codec).toBe('h264');
+    expect(probe.width).toBe(1280);
+    expect(probe.height).toBe(720);
+    expect(probe.frames).toBe(report.frames);
+
+    // Three scenes each keep an uncompressed tail, so however aggressively
+    // idle is compressed the video cannot collapse below their sum.
+    expect(report.durationSec).toBeGreaterThan(3 * SCENE_TAIL_SEC);
   }, 300000);
 });

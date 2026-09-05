@@ -6,6 +6,7 @@ import {
   type Image,
   type SKRSContext2D,
 } from '@napi-rs/canvas';
+import { cursorAt, drawCursor, type CursorKeyframe } from './cursor.js';
 import type { Theme } from './theme.js';
 
 export interface BrowserFrameGeometry {
@@ -92,4 +93,23 @@ export class BrowserFrameRenderer {
     this.cachedPath = null;
     this.cachedImage = null;
   }
+}
+
+/**
+ * Compose a browser frame together with its cursor overlay.
+ *
+ * Every render path MUST go through this. Phase 3a shipped with the
+ * composed path calling `compose()` directly and silently losing the
+ * cursor, because drawing it lived only in the single-session path.
+ * Keeping the two steps welded together is what prevents that.
+ */
+export async function composeBrowserWithCursor(
+  renderer: BrowserFrameRenderer,
+  jpegPath: string | null,
+  pointers: readonly CursorKeyframe[],
+  tSec: number,
+): Promise<void> {
+  await renderer.compose(jpegPath);
+  const cursor = cursorAt([...pointers], tSec);
+  if (cursor) drawCursor(renderer.context, cursor.at, { clickAge: cursor.clickAge });
 }

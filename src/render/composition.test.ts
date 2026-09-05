@@ -156,3 +156,75 @@ describe('wallClockAt', () => {
     expect(r.wallMs).toBeLessThanOrEqual(BASE + 3100 + 1);
   });
 });
+
+describe('idle compression', () => {
+  // `boot` measured 3.1s; say 2s of that was dead air.
+  const idleByScene = {
+    boot: [{ startMs: BASE + 500, endMs: BASE + 2500 }],
+  };
+
+  it('shortens a scene containing idle', () => {
+    const plain = planComposition(script, captures);
+    const compressed = planComposition(script, captures, { idleByScene });
+    const a = plain.windows[0]!;
+    const b = compressed.windows[0]!;
+    expect(b.outEndSec - b.outStartSec).toBeLessThan(a.outEndSec - a.outStartSec);
+  });
+
+  it('caps how much an idle span is sped up', () => {
+    const compressed = planComposition(script, captures, { idleByScene, maxSpeedup: 4 });
+    const boot = compressed.windows[0]!;
+    // 1.1s active + 2s/4 idle + 0.9s tail
+    expect(boot.outEndSec - boot.outStartSec).toBeCloseTo(1.1 + 0.5 + SCENE_TAIL_SEC, 2);
+  });
+
+  it('leaves the tail uncompressed', () => {
+    const aggressive = planComposition(script, captures, {
+      idleByScene: { boot: [{ startMs: BASE, endMs: BASE + 3100 }] },
+      maxSpeedup: 100,
+    });
+    const boot = aggressive.windows[0]!;
+    expect(boot.outEndSec - boot.outStartSec).toBeGreaterThanOrEqual(SCENE_TAIL_SEC);
+  });
+
+  it('does not touch scenes with no idle recorded', () => {
+    const plain = planComposition(script, captures);
+    const compressed = planComposition(script, captures, { idleByScene });
+    const a = plain.windows[1]!;
+    const b = compressed.windows[1]!;
+    expect(b.outEndSec - b.outStartSec).toBeCloseTo(a.outEndSec - a.outStartSec, 6);
+  });
+
+  it('keeps the output-to-wall mapping monotonic', () => {
+    const plan = planComposition(script, captures, { idleByScene });
+    let previous = -Infinity;
+    for (let t = 0; t < plan.totalSec; t += 1 / 30) {
+      const at = wallClockAt(plan, t);
+      if (!at || at.window.id !== 'boot') continue;
+      // A backwards step would make CastPlayer throw.
+      expect(at.wallMs).toBeGreaterThanOrEqual(previous);
+      previous = at.wallMs;
+    }
+  });
+
+  it('still reaches the end of the captured span', () => {
+    const plan = planComposition(script, captures, { idleByScene });
+    const boot = plan.windows[0]!;
+    const atEnd = wallClockAt(plan, boot.outEndSec - 0.01)!;
+    expect(atEnd.wallMs).toBeCloseTo(BASE + 3100, 0);
+  });
+
+  it('passes through idle time faster than active time', () => {
+    const plan = planComposition(script, captures, { idleByScene, maxSpeedup: 8 });
+    const boot = plan.windows[0]!;
+    const early = wallClockAt(plan, boot.outStartSec + 0.1)!;
+    const later = wallClockAt(plan, boot.outStartSec + 0.2)!;
+    const activeRate = later.wallMs - early.wallMs;
+
+    const midA = wallClockAt(plan, boot.outStartSec + 0.6)!;
+    const midB = wallClockAt(plan, boot.outStartSec + 0.7)!;
+    const idleRate = midB.wallMs - midA.wallMs;
+
+    expect(idleRate).toBeGreaterThan(activeRate);
+  });
+});
