@@ -97,8 +97,30 @@ export class LayoutCompositor {
     this.ctx.fillRect(0, 0, this.width, this.height);
   }
 
-  /** Fit a source to the canvas, preserving aspect ratio. */
-  drawFullscreen(source: Drawable): void {
+  /**
+   * Fit a source to the canvas, preserving aspect ratio.
+   *
+   * With a camera, that region of the source fills the canvas instead —
+   * which is how zoom and panning are expressed. Moving a rectangle over
+   * a surface rendered once is smooth; re-rendering at a larger font per
+   * frame snaps to whole pixels and jitters.
+   */
+  drawFullscreen(source: Drawable, camera?: Rect): void {
+    if (camera) {
+      this.ctx.drawImage(
+        source,
+        camera.x,
+        camera.y,
+        camera.width,
+        camera.height,
+        0,
+        0,
+        this.width,
+        this.height,
+      );
+      return;
+    }
+
     const sw = source.width;
     const sh = source.height;
     const scale = Math.min(this.width / sw, this.height / sh);
