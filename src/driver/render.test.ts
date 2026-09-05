@@ -158,3 +158,39 @@ describe('pacing', () => {
     expect(report.durationSec).toBeGreaterThan(3 * SCENE_TAIL_SEC);
   }, 300000);
 });
+
+describe('failing runs produce no video', () => {
+  it('does not encode when an assertion fails', async () => {
+    const script = load('fixtures/terminal/demo.yaml');
+    script.scenes[0]!.assert = [{ stdout_contains: 'never-printed-anywhere' }];
+    const out = join(dir, 'should-not-exist.mp4');
+
+    const report = await renderDemo(script, { outputPath: out });
+
+    expect(report.ok).toBe(false);
+    expect(report.frames).toBe(0);
+    // The whole point: no plausible-looking artifact for a broken demo.
+    expect(existsSync(out)).toBe(false);
+  }, 120000);
+
+  it('removes a stale video left by an earlier successful run', async () => {
+    const { writeFileSync } = await import('node:fs');
+    const out = join(dir, 'stale.mp4');
+    writeFileSync(out, 'pretend this is last weeks good render');
+
+    const script = load('fixtures/terminal/demo.yaml');
+    script.scenes[0]!.assert = [{ stdout_contains: 'never-printed-anywhere' }];
+    await renderDemo(script, { outputPath: out });
+
+    expect(existsSync(out)).toBe(false);
+  }, 120000);
+
+  it('is fast, because it never reaches the encoder', async () => {
+    const script = load('fixtures/terminal/demo.yaml');
+    script.scenes[0]!.assert = [{ stdout_contains: 'never-printed-anywhere' }];
+    const t0 = Date.now();
+    await renderDemo(script, { outputPath: join(dir, 'fast.mp4') });
+    // Capture of one short scene, then stop. The baseline took 63s.
+    expect(Date.now() - t0).toBeLessThan(30000);
+  }, 120000);
+});

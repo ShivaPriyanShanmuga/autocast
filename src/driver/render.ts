@@ -2,6 +2,7 @@ import type { DemoScript } from '../schema/demo.js';
 import type { CastLog } from '../backends/terminal/cast.js';
 import { BrowserFrameRenderer, composeBrowserWithCursor } from '../render/browser-frame.js';
 import type { CursorKeyframe } from '../render/cursor.js';
+import { rm } from 'node:fs/promises';
 import { encodeFrames } from '../render/encoder.js';
 import { browserFrameCount, resampleManifest } from '../render/resample.js';
 import { CastPlayer } from '../render/cast-player.js';
@@ -67,6 +68,14 @@ export async function renderDemo(
       ...(a.detail === undefined ? {} : { detail: a.detail }),
     })),
   }));
+
+  if (!capture.ok) {
+    // Never hand back a plausible-looking video of a broken demo, and
+    // never leave an older good one sitting at the output path where it
+    // would be mistaken for this run's result.
+    await rm(outputPath, { force: true });
+    return { ok: false, outputPath, scenes, frames: 0, durationSec: 0 };
+  }
 
   if (needsComposition) {
     // Detect idle on the session the viewer is actually watching — a

@@ -98,3 +98,38 @@ describe('captureDemo with a browser session', () => {
     expect(Object.keys(result.frames)).toEqual([]);
   }, 120000);
 });
+
+describe('abort on failure', () => {
+  it('stops after the first failing scene instead of cascading', async () => {
+    const { captureDemo } = await import('./capture.js');
+    const script = load('fixtures/terminal/demo.yaml');
+    script.scenes[0]!.assert = [{ stdout_contains: 'never-printed-anywhere' }];
+
+    const result = await captureDemo(script);
+
+    expect(result.ok).toBe(false);
+    expect(result.abortedAt).toBe(script.scenes[0]!.id);
+    // The second scene must not have run: its failure would be caused by
+    // the first, and cascading failures bury the real cause.
+    expect(result.scenes).toHaveLength(1);
+  }, 120000);
+
+  it('runs every scene when told to continue', async () => {
+    const { captureDemo } = await import('./capture.js');
+    const script = load('fixtures/terminal/demo.yaml');
+    script.scenes[0]!.assert = [{ stdout_contains: 'never-printed-anywhere' }];
+
+    const result = await captureDemo(script, { onSceneFail: 'continue' });
+
+    expect(result.ok).toBe(false);
+    expect(result.abortedAt).toBeNull();
+    expect(result.scenes).toHaveLength(script.scenes.length);
+  }, 120000);
+
+  it('reports no abort for a passing demo', async () => {
+    const { captureDemo } = await import('./capture.js');
+    const result = await captureDemo(load('fixtures/terminal/demo.yaml'));
+    expect(result.ok).toBe(true);
+    expect(result.abortedAt).toBeNull();
+  }, 120000);
+});
