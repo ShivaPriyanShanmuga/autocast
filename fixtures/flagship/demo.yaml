@@ -6,7 +6,7 @@ output:
 
 defaults:
   typing_speed: 55ms
-  settle: 300ms
+  settle: 750ms
 
 sessions:
   api:

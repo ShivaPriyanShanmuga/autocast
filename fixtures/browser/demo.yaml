@@ -5,7 +5,7 @@ output:
   fps: 30
 
 defaults:
-  settle: 250ms
+  settle: 750ms
 
 sessions:
   web:

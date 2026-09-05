@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import type { DemoScript } from '../schema/demo.js';
 import type { SceneCapture } from '../driver/capture.js';
-import { planComposition, wallClockAt, MIN_SCENE_SEC } from './composition.js';
+import { planComposition, wallClockAt, MIN_SCENE_SEC, SCENE_TAIL_SEC } from './composition.js';
 
 const script = {
   autocast: 1,
@@ -47,22 +47,47 @@ describe('planComposition', () => {
     expect(plan.windows[0]!.outStartSec).toBe(0);
   });
 
-  it('uses the measured duration when it exceeds the minimum', () => {
+  it('uses the measured duration plus a tail beat', () => {
     const plan = planComposition(script, captures);
     const boot = plan.windows[0]!;
-    expect(boot.outEndSec - boot.outStartSec).toBeCloseTo(3.1, 3);
+    expect(boot.outEndSec - boot.outStartSec).toBeCloseTo(3.1 + SCENE_TAIL_SEC, 3);
   });
 
   it('gives a zero-duration scene a minimum hold instead of one frame', () => {
     const plan = planComposition(script, captures);
     const logs = plan.windows[2]!;
-    expect(logs.outEndSec - logs.outStartSec).toBeCloseTo(MIN_SCENE_SEC, 3);
+    expect(logs.outEndSec - logs.outStartSec).toBeCloseTo(MIN_SCENE_SEC + SCENE_TAIL_SEC, 3);
   });
 
   it('honours an overridden minimum', () => {
-    const plan = planComposition(script, captures, { minSceneSec: 3 });
+    const plan = planComposition(script, captures, { minSceneSec: 3, sceneTailSec: 0 });
     const logs = plan.windows[2]!;
     expect(logs.outEndSec - logs.outStartSec).toBeCloseTo(3, 3);
+  });
+
+  it('adds a tail beat to every scene so its result can be read', () => {
+    // wait_for returns the INSTANT its pattern matches, so without a tail
+    // the scene cuts on the very frame the output appears.
+    const withTail = planComposition(script, captures);
+    const without = planComposition(script, captures, { sceneTailSec: 0 });
+    for (let i = 0; i < withTail.windows.length; i++) {
+      const a = withTail.windows[i]!;
+      const b = without.windows[i]!;
+      expect(a.outEndSec - a.outStartSec).toBeCloseTo(
+        b.outEndSec - b.outStartSec + SCENE_TAIL_SEC,
+        3,
+      );
+    }
+  });
+
+  it('holds the scene end state through the tail rather than cutting', () => {
+    const plan = planComposition(script, captures);
+    const boot = plan.windows[0]!;
+    // Just before the cut, we must still be in `boot` showing its last
+    // captured moment — not already in the next scene.
+    const atCut = wallClockAt(plan, boot.outEndSec - 0.02)!;
+    expect(atCut.window.id).toBe('boot');
+    expect(atCut.wallMs).toBeCloseTo(BASE + 3100, 0);
   });
 
   it('reports a total equal to the last window end', () => {

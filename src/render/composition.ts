@@ -33,8 +33,20 @@ export interface CompositionPlan {
  */
 export const MIN_SCENE_SEC = 1.2;
 
+/**
+ * A beat held on every scene's end state before cutting away.
+ *
+ * `wait_for` returns the INSTANT its pattern matches, so a scene that
+ * waits for `listening on :3000` ends on the very frame that text
+ * appears — the viewer never gets to read the thing the scene was about.
+ * The tail freezes on the captured end state (see `wallClockAt`), it does
+ * not invent footage.
+ */
+export const SCENE_TAIL_SEC = 0.9;
+
 export interface PlanOptions {
   minSceneSec?: number;
+  sceneTailSec?: number;
 }
 
 export function planComposition(
@@ -43,6 +55,7 @@ export function planComposition(
   opts: PlanOptions = {},
 ): CompositionPlan {
   const minSceneSec = opts.minSceneSec ?? MIN_SCENE_SEC;
+  const sceneTailSec = opts.sceneTailSec ?? SCENE_TAIL_SEC;
   const sessionIds = new Set(Object.keys(script.sessions));
   const byId = new Map(scenes.map((s) => [s.id, s]));
 
@@ -58,7 +71,7 @@ export function planComposition(
     const wallStartMs = captured?.startedAt ?? 0;
     const wallEndMs = captured?.endedAt ?? wallStartMs;
     const measuredSec = Math.max(0, (wallEndMs - wallStartMs) / 1000);
-    const durationSec = Math.max(measuredSec, minSceneSec);
+    const durationSec = Math.max(measuredSec, minSceneSec) + sceneTailSec;
 
     const primary = scene.layout?.primary ?? scene.use;
     if (!sessionIds.has(primary)) {
