@@ -1,5 +1,5 @@
 import type { Browser, BrowserContext, CDPSession, Page } from 'playwright';
-import type { CursorKeyframe, CursorPoint } from '../../render/cursor.js';
+import type { CursorKeyframe, CursorPoint, ZoomKeyframe } from '../../render/cursor.js';
 import { FrameStore, type FrameManifest } from './frame-store.js';
 
 export interface BrowserSessionOptions {
@@ -27,6 +27,7 @@ export interface BrowserSession {
   failedRequests(): string[];
   recordPointer(at: CursorPoint, click: boolean): void;
   pointerTrack(): CursorKeyframe[];
+  zoomTrack(): ZoomKeyframe[];
   manifest(): FrameManifest;
   dispose(): Promise<void>;
 }
@@ -57,6 +58,7 @@ export async function openBrowserSession(
   const consoleErrors: string[] = [];
   const failedRequests: string[] = [];
   const pointerTrack: CursorKeyframe[] = [];
+  const zoomTrack: ZoomKeyframe[] = [];
   page.on('console', (m) => {
     if (m.type() === 'error') consoleErrors.push(m.text());
   });
@@ -109,6 +111,9 @@ export async function openBrowserSession(
       // In-browser zoom: Chromium re-rasterises at this scale, so zoomed
       // text is natively sharp rather than an upscaled crop (spec 4.5).
       await client.send('Emulation.setPageScaleFactor', { pageScaleFactor: scale });
+      // Recorded so the cursor overlay can follow the scale; without
+      // this the pointer is drawn where it never was.
+      zoomTrack.push({ tSec: Date.now() / 1000, scale });
     },
 
     async boundingBox(selector) {
@@ -127,6 +132,7 @@ export async function openBrowserSession(
     },
 
     pointerTrack: () => [...pointerTrack],
+    zoomTrack: () => [...zoomTrack],
     manifest: () => store.manifest(width, height),
 
     async dispose() {

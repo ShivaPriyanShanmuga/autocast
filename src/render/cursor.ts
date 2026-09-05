@@ -118,3 +118,23 @@ export function drawCursor(
 
   ctx.restore();
 }
+
+export interface ZoomKeyframe {
+  tSec: number;
+  scale: number;
+}
+
+/**
+ * The page scale in effect at a moment.
+ *
+ * Never interpolated: the browser jumps to a new scale, so a blended
+ * value would place the cursor over a page state that never rendered.
+ */
+export function scaleAt(track: readonly ZoomKeyframe[], tSec: number): number {
+  let scale = 1;
+  for (const k of track) {
+    if (k.tSec <= tSec) scale = k.scale;
+    else break;
+  }
+  return scale;
+}

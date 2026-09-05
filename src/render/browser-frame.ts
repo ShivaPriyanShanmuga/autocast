@@ -6,7 +6,13 @@ import {
   type Image,
   type SKRSContext2D,
 } from '@napi-rs/canvas';
-import { cursorAt, drawCursor, type CursorKeyframe } from './cursor.js';
+import {
+  cursorAt,
+  drawCursor,
+  scaleAt,
+  type CursorKeyframe,
+  type ZoomKeyframe,
+} from './cursor.js';
 import type { Theme } from './theme.js';
 
 export interface BrowserFrameGeometry {
@@ -108,8 +114,18 @@ export async function composeBrowserWithCursor(
   jpegPath: string | null,
   pointers: readonly CursorKeyframe[],
   tSec: number,
+  zoomTrack: readonly ZoomKeyframe[] = [],
+  cursorSize = 1,
 ): Promise<void> {
   await renderer.compose(jpegPath);
   const cursor = cursorAt([...pointers], tSec);
-  if (cursor) drawCursor(renderer.context, cursor.at, { clickAge: cursor.clickAge });
+  if (!cursor) return;
+  // Keyframes are CSS pixels. Once the page is scaled, the same element
+  // sits somewhere else on screen, so the pointer must scale with it.
+  const scale = scaleAt(zoomTrack, tSec);
+  drawCursor(
+    renderer.context,
+    { x: cursor.at.x * scale, y: cursor.at.y * scale },
+    { clickAge: cursor.clickAge, size: 18 * cursorSize },
+  );
 }

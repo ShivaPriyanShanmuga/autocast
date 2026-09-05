@@ -1,7 +1,9 @@
 import type { DemoScript } from '../schema/demo.js';
 import type { CastLog } from '../backends/terminal/cast.js';
 import { BrowserFrameRenderer, composeBrowserWithCursor } from '../render/browser-frame.js';
-import type { CursorKeyframe } from '../render/cursor.js';
+import type { CursorKeyframe, ZoomKeyframe } from '../render/cursor.js';
+import { Presenter } from '../render/present.js';
+import { resolveStyle } from '../render/style.js';
 import { rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import {
@@ -72,6 +74,9 @@ export async function renderDemo(
   const needsComposition =
     Object.keys(script.sessions).length > 1 ||
     script.scenes.some((s) => s.layout !== undefined);
+
+  const resolvedStyle = resolveStyle(script.style);
+  const presenter = new Presenter(canvasW, canvasH, resolvedStyle);
 
   const capture = await captureDemo(script);
 
@@ -209,18 +214,23 @@ export async function renderDemo(
     const browsers = new Map<string, BrowserFrameRenderer>();
     const browserTicks = new Map<string, ReturnType<typeof resampleManifest>>();
     const browserPointers = new Map<string, CursorKeyframe[]>();
+    const browserZooms = new Map<string, ZoomKeyframe[]>();
     for (const [id, manifest] of Object.entries(capture.frames)) {
       browsers.set(
         id,
         new BrowserFrameRenderer({ width: canvasW, height: canvasH }, DEFAULT_THEME),
       );
       browserTicks.set(id, resampleManifest(manifest, { fps, tailMs: 0 }));
-      // Pointer keyframes are absolute unix seconds; rebase onto the
-      // session's own timeline once, not per frame.
+      // Pointer and zoom keyframes are absolute unix seconds; rebase onto
+      // the session's own timeline once, not per frame.
       const firstSec = manifest.frames[0]?.tSec ?? 0;
       browserPointers.set(
         id,
         (capture.pointers[id] ?? []).map((k) => ({ ...k, tSec: k.tSec - firstSec })),
+      );
+      browserZooms.set(
+        id,
+        (capture.zooms[id] ?? []).map((k) => ({ ...k, tSec: k.tSec - firstSec })),
       );
     }
 
@@ -256,6 +266,8 @@ export async function renderDemo(
         chosen?.source?.path ?? null,
         browserPointers.get(sessionId) ?? [],
         tSec,
+        browserZooms.get(sessionId) ?? [],
+        resolvedStyle.cursorSize,
       );
       return browser.surface;
     };
@@ -282,6 +294,7 @@ export async function renderDemo(
           compositor.drawInset(
             await surfaceFor(at.window.inset.session, at.wallMs),
             at.window.inset,
+            resolvedStyle.radius,
           );
         }
         // Fade the outgoing scene out over the first moments of this one.
@@ -291,7 +304,7 @@ export async function renderDemo(
         }
 
         previousWindowId = at.window.id;
-        yield compositor.readPixels();
+        yield presenter.present(compositor.surface);
       }
     }
 
@@ -327,6 +340,10 @@ export async function renderDemo(
       ...k,
       tSec: k.tSec - firstFrameSec,
     }));
+    const zooms = (capture.zooms[id] ?? []).map((k) => ({
+      ...k,
+      tSec: k.tSec - firstFrameSec,
+    }));
 
     const ticks = resampleManifest(manifest, { fps });
     const browserRenderer = new BrowserFrameRenderer(
@@ -341,8 +358,10 @@ export async function renderDemo(
           tick.source?.path ?? null,
           pointers,
           tick.tSec,
+          zooms,
+          resolvedStyle.cursorSize,
         );
-        yield browserRenderer.readPixels();
+        yield presenter.present(browserRenderer.surface);
       }
     }
 
@@ -377,7 +396,8 @@ export async function renderDemo(
 
   async function* frames(): AsyncGenerator<Buffer> {
     for await (const screen of replayCast(cast!, { fps, theme: DEFAULT_THEME })) {
-      yield renderer.render(screen);
+      renderer.compose(screen);
+      yield presenter.present(renderer.surface);
     }
   }
 

@@ -4,7 +4,7 @@ import { evaluateBrowserAssertion } from '../backends/browser/assertions.js';
 import type { FrameManifest } from '../backends/browser/frame-store.js';
 import { openBrowserSession, type BrowserSession } from '../backends/browser/session.js';
 import { executeBrowserStep } from '../backends/browser/steps.js';
-import type { CursorKeyframe } from '../render/cursor.js';
+import type { CursorKeyframe, ZoomKeyframe } from '../render/cursor.js';
 import { evaluateAssertion, type AssertResult } from '../backends/terminal/assertions.js';
 import type { CastLog } from '../backends/terminal/cast.js';
 import { openTerminalSession, type TerminalSession } from '../backends/terminal/session.js';
@@ -26,6 +26,7 @@ export interface CaptureArtifact {
   casts: Record<string, CastLog>;
   frames: Record<string, FrameManifest>;
   pointers: Record<string, CursorKeyframe[]>;
+  zooms: Record<string, ZoomKeyframe[]>;
   ok: boolean;
 }
 
@@ -70,6 +71,7 @@ export async function captureDemo(
   const casts: Record<string, CastLog> = {};
   const frames: Record<string, FrameManifest> = {};
   const pointers: Record<string, CursorKeyframe[]> = {};
+  const zooms: Record<string, ZoomKeyframe[]> = {};
   const scenes: SceneCapture[] = [];
   let abortedAt: string | null = null;
 
@@ -183,9 +185,10 @@ export async function captureDemo(
       } else {
         frames[entry.id] = entry.session.manifest();
         pointers[entry.id] = entry.session.pointerTrack();
+        zooms[entry.id] = entry.session.zoomTrack();
       }
     }
-    return { scenes, casts, frames, pointers, abortedAt, ok: scenes.every((s) => s.ok) };
+    return { scenes, casts, frames, pointers, zooms, abortedAt, ok: scenes.every((s) => s.ok) };
   } finally {
     // Reverse declaration order, and never let one failure strand another.
     for (const entry of [...sessions].reverse()) {
@@ -195,6 +198,7 @@ export async function captureDemo(
         await entry.session.stopCapture().catch(() => undefined);
         frames[entry.id] ??= entry.session.manifest();
         pointers[entry.id] ??= entry.session.pointerTrack();
+        zooms[entry.id] ??= entry.session.zoomTrack();
       }
       await entry.session.dispose().catch(() => undefined);
     }
