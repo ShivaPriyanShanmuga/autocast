@@ -1,5 +1,14 @@
 import type { SceneCapture } from '../driver/capture.js';
 import type { DemoScript } from '../schema/demo.js';
+import { clampSpans, MAX_SPEEDUP, type IdleSpan } from './idle.js';
+
+/** A stretch of output time mapping linearly onto a stretch of wall time. */
+export interface TimeSegment {
+  outStartSec: number;
+  outEndSec: number;
+  wallStartMs: number;
+  wallEndMs: number;
+}
 
 export interface InsetSpec {
   session: string;
@@ -19,6 +28,12 @@ export interface SceneWindow {
   /** Session shown fullscreen. */
   primary: string;
   inset: InsetSpec | null;
+  /**
+   * Piecewise map from output time to wall time. Active stretches run
+   * 1:1; idle stretches are compressed. Always monotonic, because a
+   * backwards step would make CastPlayer throw.
+   */
+  segments: TimeSegment[];
 }
 
 export interface CompositionPlan {
@@ -47,6 +62,9 @@ export const SCENE_TAIL_SEC = 0.9;
 export interface PlanOptions {
   minSceneSec?: number;
   sceneTailSec?: number;
+  /** Idle spans per scene id, in absolute wall-clock ms. */
+  idleByScene?: Record<string, IdleSpan[]>;
+  maxSpeedup?: number;
 }
 
 export function planComposition(
@@ -70,8 +88,49 @@ export function planComposition(
     const captured = byId.get(scene.id);
     const wallStartMs = captured?.startedAt ?? 0;
     const wallEndMs = captured?.endedAt ?? wallStartMs;
-    const measuredSec = Math.max(0, (wallEndMs - wallStartMs) / 1000);
-    const durationSec = Math.max(measuredSec, minSceneSec) + sceneTailSec;
+    const idle = clampSpans(opts.idleByScene?.[scene.id] ?? [], wallStartMs, wallEndMs);
+    const speedup = Math.max(1, opts.maxSpeedup ?? MAX_SPEEDUP);
+
+    // Walk the measured span, emitting an active segment at 1:1 and each
+    // idle gap compressed by `speedup`.
+    const segments: TimeSegment[] = [];
+    let outCursor = cursor;
+    let wallCursor = wallStartMs;
+
+    const pushSegment = (wallEnd: number, divisor: number): void => {
+      if (wallEnd <= wallCursor) return;
+      const outSpan = (wallEnd - wallCursor) / 1000 / divisor;
+      segments.push({
+        outStartSec: outCursor,
+        outEndSec: outCursor + outSpan,
+        wallStartMs: wallCursor,
+        wallEndMs: wallEnd,
+      });
+      outCursor += outSpan;
+      wallCursor = wallEnd;
+    };
+
+    for (const span of idle) {
+      pushSegment(span.startMs, 1); // active run before the gap
+      pushSegment(span.endMs, speedup); // the gap itself, compressed
+    }
+    pushSegment(wallEndMs, 1); // whatever is left
+
+    const compressedSec = outCursor - cursor;
+    // The minimum applies to the compressed body. The tail is added on
+    // top and is NEVER compressed: it exists so a scene's result can be
+    // read, and eating it would undo that.
+    const bodySec = Math.max(compressedSec, minSceneSec);
+    if (bodySec > compressedSec) {
+      // Pad by holding the end state, exactly as the tail does.
+      segments.push({
+        outStartSec: outCursor,
+        outEndSec: cursor + bodySec,
+        wallStartMs: wallEndMs,
+        wallEndMs,
+      });
+    }
+    const durationSec = bodySec + sceneTailSec;
 
     const primary = scene.layout?.primary ?? scene.use;
     if (!sessionIds.has(primary)) {
@@ -96,6 +155,7 @@ export function planComposition(
       wallEndMs,
       primary,
       inset,
+      segments,
     });
     cursor += durationSec;
   }
@@ -122,9 +182,19 @@ export function wallClockAt(
     plan.windows[plan.windows.length - 1];
   if (!window) return null;
 
-  const intoSec = outSec - window.outStartSec;
-  const measuredMs = window.wallEndMs - window.wallStartMs;
-  const offsetMs = Math.min(intoSec * 1000, measuredMs);
+  const segment = window.segments.find(
+    (seg) => outSec >= seg.outStartSec && outSec < seg.outEndSec,
+  );
 
-  return { window, wallMs: window.wallStartMs + offsetMs };
+  if (segment) {
+    const span = segment.outEndSec - segment.outStartSec;
+    const progress = span <= 0 ? 1 : (outSec - segment.outStartSec) / span;
+    return {
+      window,
+      wallMs: segment.wallStartMs + progress * (segment.wallEndMs - segment.wallStartMs),
+    };
+  }
+
+  // Past the last segment: the tail. Freeze on the captured end state.
+  return { window, wallMs: window.wallEndMs };
 }
