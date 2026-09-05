@@ -395,6 +395,32 @@ scene is imperceptible; drift accumulating across a video is what reads as
 broken. argo and playwright-recast both sync globally and patch in one
 direction only.
 
+### 7.1.1 Idle compression must be narration-aware
+
+Levers 1 and 2 pull in opposite directions, and applying them in the wrong
+order produces a worse video than applying neither.
+
+A scene carrying narration needs time on screen for that narration. If idle
+compression runs first and strips the scene down to its active moments, the
+sync policy then has to add the time back as extended holds — so the viewer
+gets the real content rushed past, followed by a frozen frame. That is
+strictly worse than leaving the original pacing alone.
+
+**Narration duration is therefore a floor on compression, not something to
+reconcile afterwards.** A scene's compressed body is
+`max(compressedSec, narrationSec, minSceneSec)`, computed before any holds
+are considered. Only once compression has respected that floor does the
+bidirectional policy above decide what to do with the remainder.
+
+The same applies to the head and tail: both are uncompressible by
+construction (section 12, phase 3b), so narration can never be cut off by a
+scene ending early.
+
+**Status:** the floor is not implemented — phase 3b compresses against
+`minSceneSec` only, because there is no narration yet to measure. Phase 6
+must add `narrationSec` to that `max()` when it introduces TTS. Recorded
+here because the interaction is invisible until both halves exist.
+
 ### 7.2 Not looking robotic
 
 All of this is **compositor-side**, so it never perturbs the app under test and
