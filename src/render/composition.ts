@@ -49,6 +49,15 @@ export interface SceneWindow {
    */
   zoomStartSec: number | null;
   /**
+   * What this scene narrates, and how long that takes.
+   *
+   * The duration arrives already computed. Phase 6a estimates it from
+   * word count and phase 6b measures it from synthesised audio, and the
+   * planner cannot tell which — that is what keeps voice additive rather
+   * than a second timing path (spec section 7.1.2).
+   */
+  narration: { text: string; sec: number } | null;
+  /**
    * Piecewise map from output time to wall time. Active stretches run
    * 1:1; idle stretches are compressed. Always monotonic, because a
    * backwards step would make CastPlayer throw.
@@ -115,6 +124,10 @@ export interface PlanOptions {
   terminalSessions?: TerminalSessions;
   /** Boxes measured on the acting browser session, keyed by scene id. */
   browserFocusByScene?: Record<string, Rect>;
+  /** Seconds of narration per scene id — estimated or measured. */
+  narrationByScene?: Record<string, number>;
+  /** Narration text per scene id, carried through for the caption. */
+  narrationTextByScene?: Record<string, string>;
 }
 
 export function planComposition(
@@ -183,7 +196,12 @@ export function planComposition(
     // The minimum applies to the compressed body. The tail is added on
     // top and is NEVER compressed: it exists so a scene's result can be
     // read, and eating it would undo that.
-    const bodySec = Math.max(compressedSec, minSceneSec);
+    // Section 7.1.1: narration is a FLOOR on compression, applied here
+    // rather than reconciled afterwards. Compressing first and padding
+    // back out gives the viewer the real content rushed past followed by
+    // a frozen frame — strictly worse than not compressing at all.
+    const narrationSec = Math.max(0, opts.narrationByScene?.[scene.id] ?? 0);
+    const bodySec = Math.max(compressedSec, narrationSec, minSceneSec);
     if (bodySec > compressedSec) {
       // Pad by holding the end state, exactly as the tail does.
       segments.push({
@@ -223,6 +241,10 @@ export function planComposition(
       segments,
       focus,
       zoomStartSec: focus ? cursor + headSec + bodySec : null,
+      narration:
+        narrationSec > 0
+          ? { text: opts.narrationTextByScene?.[scene.id] ?? '', sec: narrationSec }
+          : null,
     });
     cursor += durationSec;
   }

@@ -131,3 +131,31 @@ describe('writeReport', () => {
     expect(existsSync(path)).toBe(true);
   });
 });
+
+describe('narration in the report', () => {
+  const base = {
+    ok: true,
+    scenes: [{ id: 'boot', ok: true, assertions: [], sec: 4 }],
+    findings: [],
+    abortedAt: null,
+    frames: 100,
+    durationSec: 3.3,
+  };
+
+  it('records narration seconds in the measured annex', () => {
+    const r = buildReport({ ...base, narrationSec: { boot: 2.4 } });
+    expect(r.measured.narrationSec).toEqual({ boot: 2.4 });
+  });
+
+  it('keeps narration out of the byte-stable core', () => {
+    // In 6b this number comes from a TTS engine, so a version bump would
+    // otherwise read as a determinism regression.
+    const a = buildReport({ ...base, narrationSec: { boot: 2.4 } });
+    const b = buildReport({ ...base, narrationSec: { boot: 9.9 } });
+    expect(JSON.stringify(a.core)).toBe(JSON.stringify(b.core));
+  });
+
+  it('defaults to an empty record when nothing narrates', () => {
+    expect(buildReport(base).measured.narrationSec).toEqual({});
+  });
+});

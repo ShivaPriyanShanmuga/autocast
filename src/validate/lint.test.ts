@@ -178,3 +178,28 @@ describe('lint', () => {
     expect(ds.every((d) => d.loc.line > 1)).toBe(true);
   });
 });
+
+describe('L008 caption overflow', () => {
+  const withNarration = (narrate: string): string =>
+    BASE + `  - id: boot
+    use: api
+    narrate: "${narrate}"
+`;
+
+  const LONG = Array.from({ length: 40 }, () => 'wordy').join(' ');
+
+  it('warns when narration cannot fit in the caption lines', () => {
+    expect(codes(withNarration(LONG))).toContain('L008');
+  });
+
+  it('says nothing about narration that fits', () => {
+    expect(codes(withNarration('First we start the order API.'))).not.toContain('L008');
+  });
+
+  it('names the scene and points at the narration', () => {
+    const d = lintYaml(withNarration(LONG)).find((x) => x.code === 'L008')!;
+    expect(d.message).toContain('boot');
+    // Points at the narration line itself, not the top of the file.
+    expect(d.loc.line).toBeGreaterThan(1);
+  });
+});

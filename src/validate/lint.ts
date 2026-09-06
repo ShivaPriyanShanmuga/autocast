@@ -7,6 +7,7 @@ import {
 } from '../schema/demo.js';
 import type { Diagnostic, Severity } from './diagnostic.js';
 import type { ParsedSource } from './parse.js';
+import { captionLineChars, wrapCaption, MAX_LINES } from '../render/caption.js';
 
 /**
  * True scene duration is unknowable without running the demo, so this is
@@ -165,6 +166,20 @@ export function lint(script: DemoScript, parsed: ParsedSource): Diagnostic[] {
           'warning',
           'L007',
           `narration in scene "${scene.id}" is ${words} words, over the ${NARRATION_WORD_CEILING}-word ceiling — it will outrun any plausible scene`,
+          ['scenes', i, 'narrate'],
+        );
+      }
+
+      // Asked through the same functions the renderer uses, so the
+      // warning predicts exactly what the caption will do rather than
+      // approximating it.
+      const chars = captionLineChars(script.output?.canvas?.[0] ?? 1280);
+      const lines = wrapCaption(scene.narrate, chars);
+      if (lines.join('').endsWith('…')) {
+        add(
+          'warning',
+          'L008',
+          `narration in scene "${scene.id}" does not fit in ${MAX_LINES} caption lines and will be truncated`,
           ['scenes', i, 'narrate'],
         );
       }

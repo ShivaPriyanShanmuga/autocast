@@ -345,3 +345,60 @@ describe('scene focus', () => {
     expect(plan.windows[0]!.focus).toBeNull();
   });
 });
+
+describe('narration floor', () => {
+  // Section 7.1.1: narration duration is a floor on compression, not
+  // something reconciled afterwards. Compressing a scene down to its
+  // active moments and then padding it back out means the viewer gets the
+  // real content rushed past, followed by a frozen frame.
+  it('holds a scene open for narration that outlasts its action', () => {
+    const plan = planComposition(script, captures, {
+      narrationByScene: { logs: 6 },
+    });
+    const logs = plan.windows.find((w) => w.id === 'logs')!;
+    const body = logs.outEndSec - logs.outStartSec - SCENE_HEAD_SEC - SCENE_TAIL_SEC;
+    expect(body).toBeCloseTo(6, 5);
+  });
+
+  it('leaves a scene alone when its action outlasts its narration', () => {
+    const without = planComposition(script, captures);
+    const with_ = planComposition(script, captures, { narrationByScene: { boot: 0.1 } });
+    expect(with_.windows[0]!.outEndSec).toBeCloseTo(without.windows[0]!.outEndSec, 5);
+  });
+
+  it('takes the largest of compression, narration and the scene minimum', () => {
+    const plan = planComposition(script, captures, {
+      narrationByScene: { logs: MIN_SCENE_SEC / 2 },
+    });
+    const logs = plan.windows.find((w) => w.id === 'logs')!;
+    const body = logs.outEndSec - logs.outStartSec - SCENE_HEAD_SEC - SCENE_TAIL_SEC;
+    expect(body).toBeCloseTo(MIN_SCENE_SEC, 5);
+  });
+
+  it('treats zero narration exactly like none', () => {
+    const none = planComposition(script, captures);
+    const zero = planComposition(script, captures, { narrationByScene: { boot: 0, logs: 0 } });
+    expect(zero.totalSec).toBeCloseTo(none.totalSec, 10);
+  });
+
+  it('never compresses the tail to make room for narration', () => {
+    const plan = planComposition(script, captures, { narrationByScene: { logs: 9 } });
+    const logs = plan.windows.find((w) => w.id === 'logs')!;
+    const body = logs.outEndSec - logs.outStartSec - SCENE_HEAD_SEC - SCENE_TAIL_SEC;
+    // The narration gets its floor AND the tail still exists on top.
+    expect(body).toBeCloseTo(9, 5);
+    expect(logs.outEndSec - logs.outStartSec).toBeCloseTo(9 + SCENE_HEAD_SEC + SCENE_TAIL_SEC, 5);
+  });
+
+  it('carries the narration text on the window, for the caption to draw', () => {
+    const plan = planComposition(script, captures, {
+      narrationByScene: { boot: 2 },
+      narrationTextByScene: { boot: 'First we start the order API.' },
+    });
+    expect(plan.windows[0]!.narration).toEqual({
+      text: 'First we start the order API.',
+      sec: 2,
+    });
+    expect(plan.windows[1]!.narration).toBeNull();
+  });
+});

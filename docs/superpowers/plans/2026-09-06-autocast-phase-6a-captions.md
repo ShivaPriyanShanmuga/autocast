@@ -37,14 +37,14 @@ between caption reading comfort and TTS speaking rate: two different
 numbers would mean the silent cut stops being a preview of the narrated
 one (§7.1.2).
 
-- [ ] **Step 1: Failing tests** — empty and whitespace-only text is 0s;
+- [x] **Step 1: Failing tests** — empty and whitespace-only text is 0s;
   a known sentence lands within a few percent of `words / wpm * 60`;
   the rate is honoured; punctuation and newlines do not count as words;
   the result is finite and non-negative for pathological input.
-- [ ] **Step 2: Implement** — reuse the word-splitting rule already in
+- [x] **Step 2: Implement** — reuse the word-splitting rule already in
   `src/validate/lint.ts:161` so the linter's warning and the planner's
   floor cannot disagree about what a word is.
-- [ ] **Step 3: Verify** — `npx vitest run src/render/speech.test.ts`
+- [x] **Step 3: Verify** — `npx vitest run src/render/speech.test.ts`
 
 ---
 
@@ -57,12 +57,12 @@ one (§7.1.2).
 - `const MAX_LINES = 2`
 - `function wrapCaption(text: string, maxChars: number, maxLines?: number): string[]`
 
-- [ ] **Step 1: Failing tests** — short text is one line; long text wraps
+- [x] **Step 1: Failing tests** — short text is one line; long text wraps
   on word boundaries; never exceeds `maxLines`; overflow is truncated with
   an ellipsis rather than silently dropped; a single word longer than
   `maxChars` does not loop forever; empty text yields `[]`.
-- [ ] **Step 2: Implement**
-- [ ] **Step 3: Verify** — `npx vitest run src/render/caption.test.ts`
+- [x] **Step 2: Implement**
+- [x] **Step 3: Verify** — `npx vitest run src/render/caption.test.ts`
 
 ---
 
@@ -84,13 +84,13 @@ Uses the bundled JetBrains Mono already loaded for the terminal renderer —
 a generic family name resolves to a different face per platform and would
 break determinism (the same trap §4 records for the terminal).
 
-- [ ] **Step 1: Failing tests** — drawing changes pixels in the lower
+- [x] **Step 1: Failing tests** — drawing changes pixels in the lower
   third and leaves the top half untouched; an empty line array draws
   nothing at all; the scrim darkens a white background and lightens a
   black one, so the text has contrast either way; two lines occupy more
   vertical space than one.
-- [ ] **Step 2: Implement**
-- [ ] **Step 3: Verify** — `npx vitest run src/render/caption.test.ts`
+- [x] **Step 2: Implement**
+- [x] **Step 3: Verify** — `npx vitest run src/render/caption.test.ts`
 
 ---
 
@@ -107,14 +107,14 @@ break determinism (the same trap §4 records for the terminal).
 before any holds. Head, zoom envelope and tail stay on top and stay
 uncompressible, so narration cannot be cut off by a scene ending early.
 
-- [ ] **Step 1: Failing tests** — a scene whose narration exceeds its
+- [x] **Step 1: Failing tests** — a scene whose narration exceeds its
   action gets a body equal to the narration; a scene whose action exceeds
   its narration is unchanged; a scene with no narration is byte-identical
   to today's plan; the floor composes with `minSceneSec` (the largest of
   the three wins); the tail is still never compressed; narration seconds
   of zero behave exactly like absent.
-- [ ] **Step 2: Implement**
-- [ ] **Step 3: Verify** — `npx vitest run src/render/composition.test.ts`
+- [x] **Step 2: Implement**
+- [x] **Step 3: Verify** — `npx vitest run src/render/composition.test.ts`
 
 ---
 
@@ -132,13 +132,13 @@ Both the burned-in caption and the sidecar come from `cuesFromPlan`, so
 asserting the sidecar verifies the burned-in text and timing without
 decoding a pixel (§7.1.2).
 
-- [ ] **Step 1: Failing tests** — output starts with `WEBVTT`; timestamps
+- [x] **Step 1: Failing tests** — output starts with `WEBVTT`; timestamps
   are `HH:MM:SS.mmm` and zero-padded; cues are in order and never overlap;
   a plan with no narration yields no cues (and a valid, empty file);
   cue spans match their window's start and end; text with a blank line
   cannot break the cue framing.
-- [ ] **Step 2: Implement**
-- [ ] **Step 3: Verify** — `npx vitest run src/render/vtt.test.ts`
+- [x] **Step 2: Implement**
+- [x] **Step 3: Verify** — `npx vitest run src/render/vtt.test.ts`
 
 ---
 
@@ -151,12 +151,12 @@ decoding a pixel (§7.1.2).
 - `style.captions?: boolean` — default true
 - `defaults.speech_rate?: number` — words per minute
 
-- [ ] **Step 1: Failing tests** — both fields parse; both are optional;
+- [x] **Step 1: Failing tests** — both fields parse; both are optional;
   a non-positive `speech_rate` is rejected at parse time rather than
   producing an infinite scene; unknown keys still fail (the schema is
   `.strict()`).
-- [ ] **Step 2: Implement**
-- [ ] **Step 3: Verify** — `npx vitest run src/schema/`
+- [x] **Step 2: Implement**
+- [x] **Step 3: Verify** — `npx vitest run src/schema/`
 
 ---
 
@@ -173,13 +173,13 @@ draw the caption on `outCompositor` after `drawFullscreen` and **before**
 for the same reason zoom did: the flat single-session paths have no scene
 timeline to hang a cue on.
 
-- [ ] **Step 1: Failing tests** — rendering the flagship writes a `.vtt`
+- [x] **Step 1: Failing tests** — rendering the flagship writes a `.vtt`
   whose cue count equals the number of narrated scenes; `captions: false`
   writes no `.vtt` and produces a video byte-identical to one rendered
   with narration removed; the caption band differs between a captioned and
   an uncaptioned render while the top half does not.
-- [ ] **Step 2: Implement**
-- [ ] **Step 3: Verify** — `npx vitest run src/driver/`
+- [x] **Step 2: Implement**
+- [x] **Step 3: Verify** — `npx vitest run src/driver/`
 
 ---
 
@@ -188,21 +188,21 @@ timeline to hang a cue on.
 **Files:**
 - Modify: `src/verify/report.ts`, `src/validate/lint.ts`, and their tests
 
-- [ ] **Step 1: Failing tests** — narration seconds per scene appear in
+- [x] **Step 1: Failing tests** — narration seconds per scene appear in
   the report's **measured annex**, never in the byte-stable core (§4,
   determinism); the linter warns when narration cannot fit in
   `MAX_LINES` caption lines, naming the scene and the line.
-- [ ] **Step 2: Implement**
-- [ ] **Step 3: Verify** — `npx vitest run src/verify/ src/validate/`
+- [x] **Step 2: Implement**
+- [x] **Step 3: Verify** — `npx vitest run src/verify/ src/validate/`
 
 ---
 
 ### Task 9: Full verification
 
-- [ ] `npm run typecheck`
-- [ ] `npx vitest run` — everything green
-- [ ] `npm run build && node dist/cli/index.js render fixtures/flagship/demo.yaml`
-- [ ] Confirm by measurement, not by eye: `.vtt` cue times match the report's
+- [x] `npm run typecheck`
+- [x] `npx vitest run` — everything green
+- [x] `npm run build && node dist/cli/index.js render fixtures/flagship/demo.yaml`
+- [x] Confirm by measurement, not by eye: `.vtt` cue times match the report's
       scene boundaries; the caption band's pixels change per scene; the top
       half of the frame is untouched by captions.
 
