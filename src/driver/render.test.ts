@@ -1,11 +1,12 @@
 import { describe, it, expect, afterAll, beforeAll } from 'vitest';
 import { readFileSync, mkdtempSync, rmSync, existsSync } from 'node:fs';
+import { readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { parseSource } from '../validate/parse.js';
 import { checkSchema } from '../validate/schema-check.js';
 import { probeVideo } from '../render/encoder.js';
-import { renderDemo, formatRenderReport } from './render.js';
+import { renderDemo, formatRenderReport, vttPathFor } from './render.js';
 import { SCENE_TAIL_SEC } from '../render/composition.js';
 
 const dir = mkdtempSync(join(tmpdir(), 'autocast-render-'));
@@ -17,6 +18,49 @@ function load(path: string) {
   const { script, diagnostics } = checkSchema(parseSource(readFileSync(path, 'utf8')));
   if (!script) throw new Error(`fixture invalid: ${JSON.stringify(diagnostics)}`);
   return script;
+}
+
+
+/**
+ * Mean luminance of the top and bottom bands of a video's middle frame.
+ *
+ * Captions are checked as numbers, never by looking: section 3 forbids
+ * frames from reaching agent context, and "is the caption there" is a
+ * question a band average answers exactly.
+ */
+async function bandLuma(videoPath: string): Promise<{ top: number; bottom: number }> {
+  const { spawn } = await import('node:child_process');
+  const { loadImage, createCanvas } = await import('@napi-rs/canvas');
+  const png = join(dir, `${Math.random().toString(36).slice(2)}.png`);
+
+  await new Promise<void>((resolve, reject) => {
+    const p = spawn(
+      'ffmpeg',
+      ['-y', '-v', 'error', '-ss', '1.5', '-i', videoPath, '-frames:v', '1', png],
+      { stdio: 'ignore', windowsHide: true },
+    );
+    p.on('error', reject);
+    p.on('close', (code) => (code === 0 ? resolve() : reject(new Error(`ffmpeg ${code}`))));
+  });
+
+  const img = await loadImage(readFileSync(png));
+  const canvas = createCanvas(img.width, img.height);
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(img, 0, 0);
+
+  const mean = (y0: number, y1: number): number => {
+    const d = ctx.getImageData(0, y0, img.width, y1 - y0).data;
+    let sum = 0;
+    for (let i = 0; i < d.length; i += 4) {
+      sum += 0.299 * d[i]! + 0.587 * d[i + 1]! + 0.114 * d[i + 2]!;
+    }
+    return sum / (d.length / 4);
+  };
+
+  return {
+    top: mean(0, Math.round(img.height * 0.4)),
+    bottom: mean(Math.round(img.height * 0.78), img.height),
+  };
 }
 
 describe('renderDemo', () => {
@@ -207,4 +251,63 @@ describe('failing runs produce no video', () => {
     // Capture of one short scene, then stop. The baseline took 63s.
     expect(Date.now() - t0).toBeLessThan(30000);
   }, 120000);
+});
+
+describe('captions', () => {
+  it('writes a vtt sidecar whose cues match the narrated scenes', async () => {
+    const script = loadFlagshipOnPort(34713);
+    const report = await renderDemo(script, { outputPath: join(dir, 'captioned.mp4') });
+    expect(report.ok).toBe(true);
+
+    const vtt = await readFile(vttPathFor(join(dir, 'captioned.mp4')), 'utf8');
+    expect(vtt.startsWith('WEBVTT')).toBe(true);
+
+    // One cue per narrated scene, in order, and every cue inside the video.
+    const stamps = [...vtt.matchAll(/^(\d\d:\d\d:\d\d\.\d\d\d) --> (\d\d:\d\d:\d\d\.\d\d\d)$/gm)];
+    const narrated = script.scenes.filter((s) => s.narrate?.trim()).length;
+    expect(stamps.length).toBe(narrated);
+
+    const toSec = (t: string): number => {
+      const [h, m, rest] = t.split(':');
+      return Number(h) * 3600 + Number(m) * 60 + Number(rest);
+    };
+    let previousEnd = 0;
+    for (const [, start, end] of stamps) {
+      expect(toSec(start!)).toBeGreaterThanOrEqual(previousEnd - 1e-6);
+      expect(toSec(end!)).toBeGreaterThan(toSec(start!));
+      previousEnd = toSec(end!);
+    }
+    // The last cue ends when the video does.
+    expect(previousEnd).toBeCloseTo(report.durationSec, 0);
+  }, 180_000);
+
+  it('draws in the caption band and nowhere near the top of the frame', async () => {
+    // Verified by pixel band rather than by looking: section 3 forbids
+    // frames reaching agent context, so the check is a number.
+    const on = loadFlagshipOnPort(34714);
+    const off = { ...on, style: { ...on.style, captions: false } } as typeof on;
+
+    const onPath = join(dir, 'cap-on.mp4');
+    const offPath = join(dir, 'cap-off.mp4');
+    await renderDemo(on, { outputPath: onPath });
+    await renderDemo(off, { outputPath: offPath });
+
+    const a = await bandLuma(onPath);
+    const b = await bandLuma(offPath);
+    // Magnitude, not direction: over the dark terminal the white text
+    // outweighs the scrim and the band gets BRIGHTER, over a white page
+    // the scrim wins and it gets darker. Either way it changes, and the
+    // top of the frame does not.
+    expect(Math.abs(a.bottom - b.bottom)).toBeGreaterThan(1);
+    expect(Math.abs(a.top - b.top)).toBeLessThan(1);
+  }, 300_000);
+
+  it('does not write a sidecar when captions are off', async () => {
+    const base = loadFlagshipOnPort(34715);
+    const script = { ...base, style: { ...base.style, captions: false } } as typeof base;
+    const path = join(dir, 'nocap.mp4');
+    await rm(vttPathFor(path), { force: true });
+    await renderDemo(script, { outputPath: path });
+    await expect(readFile(vttPathFor(path), 'utf8')).rejects.toThrow();
+  }, 180_000);
 });

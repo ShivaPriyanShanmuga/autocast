@@ -449,10 +449,48 @@ The same applies to the head and tail: both are uncompressible by
 construction (section 12, phase 3b), so narration can never be cut off by a
 scene ending early.
 
-**Status:** the floor is not implemented — phase 3b compresses against
-`minSceneSec` only, because there is no narration yet to measure. Phase 6
-must add `narrationSec` to that `max()` when it introduces TTS. Recorded
-here because the interaction is invisible until both halves exist.
+**Status:** implemented in phase 6a. See 7.1.2 for where `narrationSec`
+comes from.
+
+### 7.1.2 Captions, and where narration duration comes from
+
+Narration ships in two phases because a demo mp4 embedded in a README
+autoplays **muted**. Captions are therefore the primary channel and voice is
+the bonus, which is the opposite of the order the phase list originally
+implied.
+
+**The planner takes a duration, not a text.** `planComposition` accepts
+`narrationByScene: Record<string, number>` in seconds. In phase 6a those
+seconds are estimated from word count; in 6b they are measured from
+synthesised audio. The planner cannot tell which it received. This is the
+whole reason 6b is additive rather than a second timing path — the
+alternative, captions estimating and voice measuring through separate logic,
+is how the two halves drift apart.
+
+**One speech rate serves both.** 150 wpm, overridable with
+`defaults.speech_rate`. Caption reading comfort and TTS speaking rate are not
+the same number, but using two would mean the silent cut stops being a preview
+of the narrated one. One number, deliberately compromised.
+
+**`narrate:` is presented by default, and paid for only when presented.**
+Captions render whenever a scene narrates; `style.captions: false` opts out.
+The 7.1.1 floor applies only when narration is actually being presented — as
+captions, or later as audio. Reserving time for text no viewer can perceive
+would be holding a frozen frame for nothing.
+
+**Captions are drawn after the camera.** Inside it they would scale and crop
+with a zoom. Order within a frame is: camera, then caption, then the
+crossfade blend — so the caption belongs to the snapshot and dissolves with
+its own scene rather than popping at the cut.
+
+**Captions force the composed path**, exactly as zoom does: the flat
+single-session paths have no scene timeline to hang a cue on.
+
+**The `.vtt` sidecar is the test surface, not just an accessibility nicety.**
+Burned-in captions and the sidecar derive from the same window spans, so
+asserting the sidecar's text and timings verifies the burned-in ones without
+decoding a pixel — which is what keeps caption verification inside the
+no-frames-in-context rule of section 3.
 
 ### 7.2 Not looking robotic
 
@@ -705,11 +743,20 @@ pipeline; no capture changes, because section 4.5 already settled resolution.
 version is one you would actually post publicly. Auto-zoom frames the clicked
 element correctly without any `focus:` hint.
 
-**Phase 6 — Narration.** Captions first, then TTS behind the sync policy. The
-default must be free, keyless and local; Piper and Kokoro are the candidates,
-decided at phase-6 planning on three criteria — cross-platform install
-footprint, licence, and whether word-level timing marks are exposed (needed for
-lever 3 in section 7.1). Paid providers optional behind the same interface.
+**Phase 6a — Captions.** Burned-in captions, the `.vtt` sidecar, and the 7.1.1
+narration floor with duration estimated from word count. No new binary
+dependency, so the sync machinery is provable before any TTS engine is chosen.
+*Exit:* the flagship carries a readable caption per scene over both dark
+terminal and white page; `<output>.vtt` cue times match the report's scene
+boundaries; a scene whose narration outlasts its action holds instead of
+cutting early; `captions: false` reproduces the current video exactly.
+
+**Phase 6b — Voice.** TTS behind the sync policy, replacing the estimate with
+measured audio duration through the same planner input. The default must be
+free, keyless and local; Piper and Kokoro are the candidates, decided at 6b
+planning on three criteria — cross-platform install footprint, licence, and
+whether word-level timing marks are exposed (needed for lever 3 in section
+7.1). Paid providers optional behind the same interface.
 *Exit:* the flagship with a voiceover that lands on the action; a deliberately
 over-wordy narration trips `sync: strict` instead of silently looking wrong.
 

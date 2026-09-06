@@ -82,3 +82,36 @@ describe('DemoScript', () => {
     expect(r.success).toBe(true);
   });
 });
+
+describe('caption fields', () => {
+  const base = {
+    autocast: 1,
+    output: { path: 'a.mp4', canvas: [1280, 720] },
+    sessions: { api: { backend: 'terminal' } },
+    scenes: [{ id: 's', use: 'api', narrate: 'hello' }],
+  };
+
+  it('accepts style.captions', () => {
+    expect(DemoScript.safeParse({ ...base, style: { captions: false } }).success).toBe(true);
+    expect(DemoScript.safeParse({ ...base, style: { captions: true } }).success).toBe(true);
+  });
+
+  it('accepts defaults.speech_rate', () => {
+    expect(DemoScript.safeParse({ ...base, defaults: { speech_rate: 120 } }).success).toBe(true);
+  });
+
+  it('leaves both optional', () => {
+    expect(DemoScript.safeParse(base).success).toBe(true);
+  });
+
+  it('rejects a speech rate that would make a scene infinitely long', () => {
+    for (const speech_rate of [0, -30]) {
+      expect(DemoScript.safeParse({ ...base, defaults: { speech_rate } }).success).toBe(false);
+    }
+  });
+
+  it('still rejects unknown keys', () => {
+    expect(DemoScript.safeParse({ ...base, style: { captoins: true } }).success).toBe(false);
+    expect(DemoScript.safeParse({ ...base, defaults: { speach_rate: 120 } }).success).toBe(false);
+  });
+});

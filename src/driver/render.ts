@@ -5,7 +5,7 @@ import type { CursorKeyframe, ZoomKeyframe } from '../render/cursor.js';
 import { Presenter } from '../render/present.js';
 import { resolveStyle } from '../render/style.js';
 import type { Canvas } from '@napi-rs/canvas';
-import { rm } from 'node:fs/promises';
+import { rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import {
   detectDurationAnomaly,
@@ -20,6 +20,9 @@ import { encodeFrames } from '../render/encoder.js';
 import { browserFrameCount, resampleManifest } from '../render/resample.js';
 import { CastPlayer } from '../render/cast-player.js';
 import { planComposition, type SceneFocus } from '../render/composition.js';
+import { captionLineChars, drawCaption, wrapCaption } from '../render/caption.js';
+import { speechDurationSec } from '../render/speech.js';
+import { buildVtt, cuesFromPlan } from '../render/vtt.js';
 import { planFrame } from '../render/frame-plan.js';
 import { findInScreen } from '../render/find-in-screen.js';
 import {
@@ -78,6 +81,23 @@ export async function renderDemo(
   const [canvasW, canvasH] = script.output.canvas;
   const fps = script.output.fps;
 
+  // narrate: is presented by default; style.captions turns it off
+  // (spec section 7.1.2). Time is reserved only for narration a viewer
+  // can actually perceive, so the floor and the caption switch together.
+  const captionsOn = script.style?.captions ?? true;
+  const speechRate = script.defaults?.speech_rate;
+  const narrationTextByScene: Record<string, string> = {};
+  const narrationByScene: Record<string, number> = {};
+  if (captionsOn) {
+    for (const scene of script.scenes) {
+      const text = scene.narrate?.trim();
+      if (!text) continue;
+      narrationTextByScene[scene.id] = text;
+      narrationByScene[scene.id] = speechDurationSec(text, speechRate);
+    }
+  }
+  const narrates = Object.keys(narrationByScene).length > 0;
+
   // More than one session, or any explicit layout, needs the composed
   // path; a single session keeps the simpler phase 1/2 fast paths.
   //
@@ -87,7 +107,10 @@ export async function renderDemo(
   const needsComposition =
     Object.keys(script.sessions).length > 1 ||
     script.scenes.some((s) => s.layout !== undefined || s.focus !== undefined) ||
-    (script.style?.zoom?.auto ?? false);
+    (script.style?.zoom?.auto ?? false) ||
+    // Captions need a scene timeline to hang a cue on, which the flat
+    // single-session paths do not have.
+    narrates;
 
   const resolvedStyle = resolveStyle(script.style);
   const presenter = new Presenter(canvasW, canvasH, resolvedStyle);
@@ -147,6 +170,9 @@ export async function renderDemo(
         abortedAt: capture.abortedAt,
         frames,
         durationSec,
+        narrationSec: Object.fromEntries(
+          Object.entries(narrationByScene).map(([id, sec]) => [id, Number(sec.toFixed(3))]),
+        ),
       }),
     );
 
@@ -219,7 +245,16 @@ export async function renderDemo(
       idleByScene,
       terminalSessions,
       browserFocusByScene: capture.zoomBoxes,
+      narrationByScene,
+      narrationTextByScene,
     });
+
+    const captionChars = captionLineChars(canvasW);
+    const captionLines = new Map<string, string[]>();
+    for (const w of plan.windows) {
+      const text = w.narration?.text.trim();
+      if (text) captionLines.set(w.id, wrapCaption(text, captionChars));
+    }
 
     // Which sessions are ever on screen while a camera is zoomed. Those
     // get rendered larger than the canvas so the camera has real pixels
@@ -422,6 +457,15 @@ export async function renderDemo(
           : null;
 
         outCompositor.drawFullscreen(pres.surface, cameraRect(size, mapped, frame.zoom));
+
+        // After the camera, so the caption does not scale and crop with a
+        // zoom. Before the blend, so it belongs to the snapshot and
+        // dissolves with its own scene instead of popping at the cut.
+        const lines = captionLines.get(window.id);
+        if (lines) {
+          drawCaption(outCompositor.context, lines, { width: canvasW, height: canvasH });
+        }
+
         outCompositor.fadeInPrevious(frame.fadeAlpha);
 
         previousWindowId = window.id;
@@ -435,6 +479,13 @@ export async function renderDemo(
       fps,
       outputPath,
     });
+
+    // Same cues the burned-in captions came from, so the sidecar is a
+    // faithful record rather than a parallel implementation.
+    const cues = cuesFromPlan(plan);
+    if (cues.length > 0) {
+      await writeFile(vttPathFor(outputPath), buildVtt(cues), 'utf8');
+    }
 
     const reportPath = await finish(encoded.frames, Number(plan.totalSec.toFixed(2)));
     return {
@@ -542,6 +593,11 @@ export async function renderDemo(
     frames: written,
     durationSec,
   };
+}
+
+/** Where the caption sidecar goes: next to the video, same basename. */
+export function vttPathFor(outputPath: string): string {
+  return outputPath.replace(/\.[^./\\]+$/, '') + '.vtt';
 }
 
 export function formatRenderReport(report: RenderReport): string {

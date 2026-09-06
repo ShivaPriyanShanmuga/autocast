@@ -155,6 +155,8 @@ const Style = z
       .strict()
       .optional(),
     cursor: z.object({ size: z.number().positive().optional() }).strict().optional(),
+    /** Burn narration into the frame. On whenever a scene narrates. */
+    captions: z.boolean().optional(),
     motion_blur: z
       .object({
         cursor: z.boolean().optional(),
@@ -179,7 +181,16 @@ export const DemoScript = z
       })
       .strict(),
     defaults: z
-      .object({ typing_speed: Duration.optional(), settle: Duration.optional() })
+      .object({
+        typing_speed: Duration.optional(),
+        settle: Duration.optional(),
+        /**
+         * Words per minute, for estimating how long narration takes.
+         * Positive: a zero or negative rate would give a scene infinite
+         * length, which is a hang rather than a video.
+         */
+        speech_rate: z.number().positive().optional(),
+      })
       .strict()
       .optional(),
     style: Style.optional(),

@@ -20,6 +20,14 @@ export interface ReportMeasured {
   frames: number;
   durationSec: number;
   sceneSec: Record<string, number>;
+  /**
+   * Seconds reserved for narration, per scene.
+   *
+   * Annex rather than core: phase 6b sources this from a TTS engine, and
+   * a version bump that shifts a duration by a few milliseconds must not
+   * read as a determinism regression (spec section 10).
+   */
+  narrationSec: Record<string, number>;
 }
 
 export interface RenderReportFile {
@@ -39,6 +47,7 @@ export interface BuildReportInput {
   abortedAt: string | null;
   frames: number;
   durationSec: number;
+  narrationSec?: Record<string, number>;
 }
 
 /**
@@ -71,6 +80,7 @@ export function buildReport(input: BuildReportInput): RenderReportFile {
       frames: input.frames,
       durationSec: input.durationSec,
       sceneSec: Object.fromEntries(input.scenes.map((s) => [s.id, s.sec])),
+      narrationSec: input.narrationSec ?? {},
     },
   };
 }
