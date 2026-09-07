@@ -52,6 +52,11 @@ export interface TerminalSession {
 }
 
 
+/** Output must be this quiet before a shell counts as ready. */
+const SHELL_QUIET_MS = 150;
+/** Never wait longer than this, even for a silent shell. */
+const SHELL_READY_TIMEOUT_MS = 5000;
+
 export async function openTerminalSession(
   opts: TerminalSessionOptions = {},
 ): Promise<TerminalSession> {
@@ -106,10 +111,12 @@ export async function openTerminalSession(
 
   let exited: number | null = null;
   let disposed = false;
+  let lastDataAt: number | null = null;
   /** Serialises xterm writes so text() never reads a half-applied frame. */
   let writeQueue: Promise<void> = Promise.resolve();
 
   proc.onData((data) => {
+    lastDataAt = Date.now();
     recorder.record(data);
     writeQueue = writeQueue.then(
       () => new Promise<void>((resolve) => term.write(data, resolve)),
@@ -130,6 +137,31 @@ export async function openTerminalSession(
     while (lines.length > 0 && lines[lines.length - 1]!.trim() === '') lines.pop();
     return lines.join('\n');
   };
+
+  // Wait for the shell to actually be ready before handing it over.
+  //
+  // pty.spawn returns as soon as the process exists, not when the shell
+  // can accept input. Typing into that gap loses characters: a test
+  // caught it twice under load, reading back a Windows banner where the
+  // typed command should have been. A real demo on a busy machine would
+  // lose its first command the same way, and produce a video of nothing
+  // happening.
+  //
+  // Shell-agnostic by design: wait for output to arrive and then go
+  // quiet, rather than matching a prompt, because every shell's prompt
+  // is different and users can set their own.
+  await new Promise<void>((resolve) => {
+    const started = Date.now();
+    const timer = setInterval(() => {
+      const settled = lastDataAt !== null && Date.now() - lastDataAt >= SHELL_QUIET_MS;
+      // A shell that never says anything must not hang the render.
+      if (settled || Date.now() - started >= SHELL_READY_TIMEOUT_MS) {
+        clearInterval(timer);
+        resolve();
+      }
+    }, 25);
+    timer.unref?.();
+  });
 
   const session: TerminalSession = {
     pid: proc.pid,

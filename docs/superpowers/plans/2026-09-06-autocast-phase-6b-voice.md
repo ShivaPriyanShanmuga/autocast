@@ -45,12 +45,12 @@ The fake must emit a genuine WAV, not a stub: every timing test downstream
 depends on ffprobe reading it, so a fake that cannot be muxed would test
 nothing.
 
-- [ ] **Step 1: Failing tests** — the fake writes a file ffprobe reports as
+- [x] **Step 1: Failing tests** — the fake writes a file ffprobe reports as
   audio; its duration matches `speechDurationSec` within a frame; two calls
   with the same text produce byte-identical files; zero-length text is
   rejected rather than producing a zero-byte WAV.
-- [ ] **Step 2: Implement**
-- [ ] **Step 3: Verify** — `npx vitest run src/voice/fake.test.ts`
+- [x] **Step 2: Implement**
+- [x] **Step 3: Verify** — `npx vitest run src/voice/fake.test.ts`
 
 ---
 
@@ -69,12 +69,12 @@ re-render the spec promises cost minutes. The key must include the
 backend name and voice: the same words in a different voice are different
 audio.
 
-- [ ] **Step 1: Failing tests** — the key changes with text, voice, rate and
+- [x] **Step 1: Failing tests** — the key changes with text, voice, rate and
   backend, and is stable across calls; a second synthesis of the same
   request does not call the backend (count invocations); a corrupt or
   zero-byte cache entry is re-synthesised rather than trusted.
-- [ ] **Step 2: Implement**
-- [ ] **Step 3: Verify** — `npx vitest run src/voice/cache.test.ts`
+- [x] **Step 2: Implement**
+- [x] **Step 3: Verify** — `npx vitest run src/voice/cache.test.ts`
 
 ---
 
@@ -95,13 +95,13 @@ clear, actionable error rather than a module-resolution crash at startup.
 spike finding: the default lands past Windows' 260-character `MAX_PATH`
 and onnxruntime then reports that a valid 92MB file does not exist.
 
-- [ ] **Step 1: Failing tests** — a missing `kokoro-js` produces a named
+- [x] **Step 1: Failing tests** — a missing `kokoro-js` produces a named
   error naming the install command, not a resolution stack trace;
   `modelCacheDir()` is short enough that the full model path stays under
   200 characters; the real-engine test runs only when `kokoro-js` resolves
   and skips loudly otherwise.
-- [ ] **Step 2: Implement**
-- [ ] **Step 3: Verify** — `npx vitest run src/voice/kokoro.test.ts`
+- [x] **Step 2: Implement**
+- [x] **Step 3: Verify** — `npx vitest run src/voice/kokoro.test.ts`
 
 ---
 
@@ -113,10 +113,10 @@ and onnxruntime then reports that a valid 92MB file does not exist.
 **Interfaces:**
 - `voice?: { enabled?: boolean; backend?: 'kokoro' | 'fake'; voice?: string; rate?: number; sync?: 'hold' | 'strict' }`
 
-- [ ] **Step 1: Failing tests** — the block parses and is optional; `rate`
+- [x] **Step 1: Failing tests** — the block parses and is optional; `rate`
   must be positive; `sync` defaults to `hold`; unknown keys still fail.
-- [ ] **Step 2: Implement**
-- [ ] **Step 3: Verify** — `npx vitest run src/schema/`
+- [x] **Step 2: Implement**
+- [x] **Step 3: Verify** — `npx vitest run src/schema/`
 
 ---
 
@@ -137,12 +137,12 @@ handed to the encoder as a second input. §13 forbids buffering the whole
 Clips anchor to their cue start, so audio and captions cannot drift apart
 — they are the same timeline.
 
-- [ ] **Step 1: Failing tests** — a clip starts at its window's start; a
+- [x] **Step 1: Failing tests** — a clip starts at its window's start; a
   plan with no narration yields no clips; the built track's duration
   equals the video's; a clip that would overrun the end is clamped rather
   than extending the file; ffprobe reports one audio stream.
-- [ ] **Step 2: Implement**
-- [ ] **Step 3: Verify** — `npx vitest run src/voice/timeline.test.ts`
+- [x] **Step 2: Implement**
+- [x] **Step 3: Verify** — `npx vitest run src/voice/timeline.test.ts`
 
 ---
 
@@ -159,12 +159,12 @@ Video stays streamed through stdin; audio is a second `-i`. AAC, and
 `-shortest` so a stray millisecond of audio cannot extend the video past
 its last frame.
 
-- [ ] **Step 1: Failing tests** — with `audioPath`, ffprobe reports an AAC
+- [x] **Step 1: Failing tests** — with `audioPath`, ffprobe reports an AAC
   stream and the video duration is unchanged within a frame; without it,
   the output is byte-identical to today's; a missing audio file fails with
   a named error rather than silently producing a mute video.
-- [ ] **Step 2: Implement**
-- [ ] **Step 3: Verify** — `npx vitest run src/render/encoder.test.ts`
+- [x] **Step 2: Implement**
+- [x] **Step 3: Verify** — `npx vitest run src/render/encoder.test.ts`
 
 ---
 
@@ -189,13 +189,13 @@ Two deliberate deviations from §7.1, both recorded in §7.1.3:
    having is the one it was reaching for: narration is driving the pacing
    more than the action is.
 
-- [ ] **Step 1: Failing tests** — narration inside the action needs no
+- [x] **Step 1: Failing tests** — narration inside the action needs no
   stretch; 5% over yields a 1.05 stretch and no scene extension; 40% over
   clamps at `STRETCH_LIMIT`; `strict` reports a finding for the 40% case
   and `hold` does not; a scene with no action at all (assertions only) is
   exempt, since there is nothing for narration to outrun.
-- [ ] **Step 2: Implement**
-- [ ] **Step 3: Verify** — `npx vitest run src/verify/sync.test.ts`
+- [x] **Step 2: Implement**
+- [x] **Step 3: Verify** — `npx vitest run src/verify/sync.test.ts`
 
 ---
 
@@ -208,13 +208,13 @@ Order: capture → synthesise (measured durations) → plan with those
 durations → render frames → build track → mux. Falls back to the 6a
 word-count estimate when voice is off.
 
-- [ ] **Step 1: Failing tests** — with the fake backend the flagship gains
+- [x] **Step 1: Failing tests** — with the fake backend the flagship gains
   an audio stream whose duration matches the video; scene bodies use the
   MEASURED duration, not the estimate; voice off produces exactly today's
   output; a script asking for a backend that is not installed fails with a
   named error and no video.
-- [ ] **Step 2: Implement**
-- [ ] **Step 3: Verify** — `npx vitest run src/driver/`
+- [x] **Step 2: Implement**
+- [x] **Step 3: Verify** — `npx vitest run src/driver/`
 
 ---
 
@@ -223,22 +223,22 @@ word-count estimate when voice is off.
 **Files:**
 - Modify: `src/doctor/checks.ts`, `src/doctor/checks.test.ts`
 
-- [ ] **Step 1: Failing tests** — voice reports `skip` (not `fail`) when
+- [x] **Step 1: Failing tests** — voice reports `skip` (not `fail`) when
   `kokoro-js` is absent, because voice is opt-in; the hint names the exact
   install command; when present, it reports the model cache directory.
-- [ ] **Step 2: Implement**
-- [ ] **Step 3: Verify** — `npx vitest run src/doctor/`
+- [x] **Step 2: Implement**
+- [x] **Step 3: Verify** — `npx vitest run src/doctor/`
 
 ---
 
 ### Task 10: Full verification
 
-- [ ] `npm run typecheck`
-- [ ] `npx vitest run` — everything green
-- [ ] `npm run build`, then render the flagship with voice and confirm by
+- [x] `npm run typecheck`
+- [x] `npx vitest run` — everything green
+- [x] `npm run build`, then render the flagship with voice and confirm by
       `ffprobe` that audio and video durations agree, and that cue starts in
       the `.vtt` match where clips were placed.
-- [ ] Re-render and confirm the cache means no re-synthesis.
+- [x] Re-render and confirm the cache means no re-synthesis.
 
 ## Exit criteria (hand-testable)
 

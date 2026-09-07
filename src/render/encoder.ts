@@ -7,6 +7,8 @@ export interface EncodeOptions {
   height: number;
   fps: number;
   outputPath: string;
+  /** A wav to mux in as the audio track. Omitted leaves the video mute. */
+  audioPath?: string;
 }
 
 export interface EncodeResult {
@@ -25,6 +27,10 @@ export async function encodeFrames(
 
   const expected = opts.width * opts.height * 4;
 
+  // Video still streams through stdin; audio is a second input read from
+  // disk. `-shortest` keeps a stray millisecond of audio from extending
+  // the file past its last frame.
+  const audio = opts.audioPath;
   const ff = spawn(
     'ffmpeg',
     [
@@ -34,10 +40,12 @@ export async function encodeFrames(
       '-s', `${opts.width}x${opts.height}`,
       '-r', String(opts.fps),
       '-i', 'pipe:0',
+      ...(audio ? ['-i', audio] : []),
       '-c:v', 'libx264',
       '-preset', 'veryfast',
       '-crf', '20',
       '-pix_fmt', 'yuv420p',
+      ...(audio ? ['-c:a', 'aac', '-b:a', '128k', '-shortest'] : []),
       '-movflags', '+faststart',
       opts.outputPath,
     ],
@@ -48,6 +56,15 @@ export async function encodeFrames(
   ff.stderr.on('data', (chunk: Buffer) => {
     stderr += chunk.toString();
     if (stderr.length > 64_000) stderr = stderr.slice(-32_000);
+  });
+
+  // Set the moment ffmpeg is gone. Without this the frame loop keeps
+  // writing into a dead stdin and blocks forever on a drain that will
+  // never come — which is what an early ffmpeg failure looks like: a
+  // hang, with the real error sitting unread in stderr.
+  let exited = false;
+  ff.on('close', () => {
+    exited = true;
   });
 
   const finished = new Promise<void>((resolve, reject) => {
@@ -101,14 +118,31 @@ export async function encodeFrames(
             `(${opts.width}x${opts.height} RGBA)`,
         );
       }
+      if (exited) break;
       if (!ff.stdin.write(frame)) {
-        await new Promise((r) => ff.stdin.once('drain', r));
+        // Race the drain against ffmpeg exiting, or a dead process
+        // deadlocks the writer.
+        await new Promise<void>((r) => {
+          const done = (): void => {
+            ff.stdin.off('drain', done);
+            ff.off('close', done);
+            r();
+          };
+          ff.stdin.once('drain', done);
+          ff.once('close', done);
+        });
       }
       count++;
     }
   } catch (error) {
     await abort();
     throw error;
+  }
+
+  if (exited) {
+    // ffmpeg is already gone, so `finished` carries the real reason.
+    await finished;
+    throw new Error('ffmpeg exited before every frame was written');
   }
 
   if (count === 0) {
@@ -127,9 +161,24 @@ export interface VideoProbe {
   height: number;
   frames: number;
   pixFmt: string;
+  audioCodec: string | null;
 }
 
 export async function probeVideo(path: string): Promise<VideoProbe> {
+  const video = await probeVideoStream(path);
+  // The video probe selects v:0 and so can never see an audio stream;
+  // asking separately is what stops "has audio" being unanswerable.
+  let audioCodec: string | null = null;
+  try {
+    const { probeAudio } = await import('../voice/probe.js');
+    audioCodec = (await probeAudio(path)).codec;
+  } catch {
+    audioCodec = null;
+  }
+  return { ...video, audioCodec };
+}
+
+async function probeVideoStream(path: string): Promise<Omit<VideoProbe, 'audioCodec'>> {
   return new Promise((resolve, reject) => {
     const p = spawn(
       'ffprobe',

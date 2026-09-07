@@ -191,6 +191,43 @@ const chromiumCheck: Check = {
 };
 
 /**
+ * Voice is optional, so its absence is 'skip', not 'fail'.
+ *
+ * A demo that never asks to speak is not broken for lacking a speech
+ * engine. A demo that DOES ask and cannot have it fails at render, with
+ * the same install hint (spec 7.1.3).
+ */
+const voiceCheck: Check = {
+  name: 'voice (kokoro)',
+  async run() {
+    const { modelCacheDir } = await import('../voice/kokoro.js');
+    try {
+      requireCjs.resolve('kokoro-js');
+    } catch {
+      return {
+        name: 'voice (kokoro)',
+        status: 'skip',
+        detail: 'not installed — voice narration unavailable',
+        hint: [
+          '    Voice is opt-in: autocast does not install a speech engine by',
+          '    default, because it pulls roughly 300MB of onnxruntime.',
+          '',
+          '      npm i -D kokoro-js',
+          '',
+          `    The model (~92MB) downloads on first use into ${modelCacheDir()}.`,
+          '    Silent and captioned demos are unaffected.',
+        ].join('\n'),
+      };
+    }
+    return {
+      name: 'voice (kokoro)',
+      status: 'ok',
+      detail: `models in ${modelCacheDir()}`,
+    };
+  },
+};
+
+/**
  * Each phase registers only what it needs — reporting a dependency the
  * installed feature set does not use would not be truthful.
  */
@@ -200,6 +237,7 @@ export const CHECKS: Check[] = [
   rubberbandCheck,
   nodePtyCheck,
   chromiumCheck,
+  voiceCheck,
   cwdWritableCheck,
 ];
 

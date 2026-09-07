@@ -115,3 +115,37 @@ describe('caption fields', () => {
     expect(DemoScript.safeParse({ ...base, defaults: { speach_rate: 120 } }).success).toBe(false);
   });
 });
+
+describe('voice block', () => {
+  const base = {
+    autocast: 1,
+    output: { path: 'a.mp4', canvas: [1280, 720] },
+    sessions: { api: { backend: 'terminal' } },
+    scenes: [{ id: 's', use: 'api', narrate: 'hello' }],
+  };
+
+  it('parses a full voice block', () => {
+    const r = DemoScript.safeParse({
+      ...base,
+      voice: { enabled: true, backend: 'kokoro', voice: 'af_heart', rate: 1.05, sync: 'strict' },
+    });
+    expect(r.success).toBe(true);
+  });
+
+  it('is optional', () => {
+    expect(DemoScript.safeParse(base).success).toBe(true);
+  });
+
+  it('rejects a non-positive rate', () => {
+    expect(DemoScript.safeParse({ ...base, voice: { rate: 0 } }).success).toBe(false);
+  });
+
+  it('rejects an unknown backend or sync mode', () => {
+    expect(DemoScript.safeParse({ ...base, voice: { backend: 'elevenlabs' } }).success).toBe(false);
+    expect(DemoScript.safeParse({ ...base, voice: { sync: 'loose' } }).success).toBe(false);
+  });
+
+  it('still rejects unknown keys', () => {
+    expect(DemoScript.safeParse({ ...base, voice: { enbaled: true } }).success).toBe(false);
+  });
+});

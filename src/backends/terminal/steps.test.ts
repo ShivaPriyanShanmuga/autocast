@@ -20,7 +20,10 @@ describe('executeStep', () => {
     const c = await ctx();
     const r = await executeStep({ type: 'echo typed-marker' }, c);
     expect(r.ok).toBe(true);
-    expect(await c.session.text()).toContain('echo typed-marker');
+    // Wait for the echo rather than assuming it is instant: the shell
+    // echoes asynchronously, and reading immediately made this the
+    // flakiest test in the suite under load.
+    expect(await c.session.waitFor(/echo typed-marker/, 15000)).toBe(true);
   }, 30000);
 
   it('key Enter submits the typed line', async () => {
