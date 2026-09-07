@@ -1,0 +1,82 @@
+autocast: 1
+output:
+  path: docs/flagship-demo-voiced.mp4
+  canvas: [1280, 720]
+  fps: 30
+
+# The same demo as demo.yaml, spoken.
+#
+# Kept as a SEPARATE fixture rather than switching voice on in the main
+# one: the engine is an optional dependency, so a voiced flagship would
+# make `npm test` fail for anyone who has not installed it.
+#
+#   npm i -D kokoro-js
+#   npx autocast render fixtures/flagship/demo-voiced.yaml
+voice:
+  enabled: true
+  backend: kokoro
+  voice: af_heart
+  sync: hold
+
+defaults:
+  typing_speed: 55ms
+  settle: 750ms
+
+style:
+  background: { gradient: ["#0f1020", "#1b1b33"], padding: 56 }
+  window: { radius: 14, shadow: true }
+  cursor: { size: 1.4 }
+  zoom: { auto: true, on: click, scale: 1.7, ease: spring }
+  motion_blur: { cursor: true }
+
+sessions:
+  api:
+    backend: terminal
+    cols: 100
+    rows: 24
+  web:
+    backend: browser
+    viewport: [1280, 720]
+
+scenes:
+  - id: boot
+    use: api
+    narrate: "First we start the order API."
+    steps:
+      - type: "node fixtures/web-app/server.mjs 34740"
+      - key: Enter
+      - wait_for:
+          stdout: /listening on :34740/
+    assert:
+      - process_alive: true
+      - stdout_contains: "listening on :34740"
+
+  - id: order
+    use: web
+    narrate: "A customer places an order for twenty-four units."
+    steps:
+      - goto: http://127.0.0.1:34740/
+      - click: "[data-test=new-order]"
+      - fill: { selector: "#qty", value: "24" }
+      - click: "#submit"
+      - wait_for:
+          selector: ".order-confirmed"
+    assert:
+      - visible: ".order-confirmed"
+      - no_console_errors: true
+
+  - id: logs
+    use: api
+    narrate: "And the server logged it."
+    layout:
+      primary: web
+      inset: { session: api, corner: bottom-right, scale: 0.4 }
+    assert:
+      - stdout_matches: /POST \/api\/orders 201/
+
+  - id: proof
+    use: api
+    narrate: "There it is, in the server's own log."
+    focus: /POST \/api\/orders 201/
+    assert:
+      - stdout_matches: /POST \/api\/orders 201/

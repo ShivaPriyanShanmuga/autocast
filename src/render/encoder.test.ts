@@ -64,3 +64,54 @@ describe('encodeFrames', () => {
     ).rejects.toThrow(/frame 1 is 10 bytes, expected \d+/i);
   }, 60000);
 });
+
+describe('audio muxing', () => {
+  const frames = async function* (n: number): AsyncGenerator<Buffer> {
+    for (let i = 0; i < n; i++) yield Buffer.alloc(64 * 48 * 4, i);
+  };
+
+  it('leaves the video mute when no audio is given', async () => {
+    const out = join(dir, 'mute.mp4');
+    await encodeFrames(frames(60), { width: 64, height: 48, fps: 30, outputPath: out });
+    expect((await probeVideo(out)).audioCodec).toBeNull();
+  }, 60_000);
+
+  it('muxes a wav in as an aac track without changing the video length', async () => {
+    const { FakeVoice } = await import('../voice/fake.js');
+    const { buildTrack } = await import('../voice/timeline.js');
+    const clip = await new FakeVoice().synthesize(
+      { text: 'one two three four five', voice: 't', rate: 1 },
+      join(dir, 'clip.wav'),
+    );
+    const track = join(dir, 'track.wav');
+    await buildTrack([{ startSec: 0.2, ...clip }], 2, track);
+
+    const mute = join(dir, 'a-mute.mp4');
+    const withAudio = join(dir, 'a-sound.mp4');
+    await encodeFrames(frames(60), { width: 64, height: 48, fps: 30, outputPath: mute });
+    await encodeFrames(frames(60), {
+      width: 64,
+      height: 48,
+      fps: 30,
+      outputPath: withAudio,
+      audioPath: track,
+    });
+
+    const probe = await probeVideo(withAudio);
+    expect(probe.audioCodec).toBe('aac');
+    // -shortest must not eat frames off the end.
+    expect(probe.frames).toBe((await probeVideo(mute)).frames);
+  }, 120_000);
+
+  it('fails loudly when the audio file is missing', async () => {
+    await expect(
+      encodeFrames(frames(30), {
+        width: 64,
+        height: 48,
+        fps: 30,
+        outputPath: join(dir, 'no-audio.mp4'),
+        audioPath: join(dir, 'does-not-exist.wav'),
+      }),
+    ).rejects.toThrow();
+  }, 60_000);
+});

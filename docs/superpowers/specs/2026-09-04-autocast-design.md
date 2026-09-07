@@ -492,6 +492,49 @@ asserting the sidecar's text and timings verifies the burned-in ones without
 decoding a pixel — which is what keeps caption verification inside the
 no-frames-in-context rule of section 3.
 
+### 7.1.3 Voice: engine, and two deviations from 7.1
+
+**Kokoro, as an optional dependency.** Apache-2.0, keyless, local, and the
+same voice on every machine — so a committed script sounds identical wherever
+it re-renders. It is NOT installed by default: a base install must not pull
+~300MB of onnxruntime for a feature most demos will not use. Voice is opt-in,
+`autocast doctor` reports it as `skip` rather than `fail` when absent, and a
+script that asks for it and cannot have it fails loudly at render.
+
+The third criterion the phase list named — word-level timing marks — was
+dropped as mistaken. It claimed they were needed for lever 3, but lever 3
+time-stretches a whole clip and needs no marks. Word marks would only matter
+for sub-scene caption timing, and 7.1.2 settled on one caption per scene.
+
+**Verified by spike, 2026-09-06 (Node 24, win32 x64):**
+
+- Deterministic: the same text twice produced identical sha256.
+- Slow: 8.8s to synthesise a 2.7s clip, ~3–5× realtime on CPU. Caching is a
+  requirement, not an optimisation.
+- **The default model cache is unloadable on Windows.** transformers.js caches
+  under `node_modules/@huggingface/transformers/.cache`; in a normal project
+  that path measured 265 characters, past the 260-character `MAX_PATH`, and
+  onnxruntime then reported that a valid 92MB file did not exist. autocast
+  sets a short user-level `cacheDir`.
+- 150 wpm predicted real speech within ±11%, mean ratio 1.01 — so 7.1.2's
+  estimate is a sound fallback when voice is off.
+
+**Deviation 1: lever 3 runs before the floor, not after.** 7.1 orders the
+levers extend-then-stretch. Applied literally the stretch is unreachable,
+because 7.1.1's floor has already extended the scene to fit. Reversing them
+is also just better: a pitch-preserved 10% stretch is inaudible, while
+holding a scene 10% longer is visible. Narration that overruns its action by
+up to 10% now speeds the audio instead of slowing the video, which keeps
+pacing driven by what is happening.
+
+**Deviation 2: lever 4 fails on a different condition.** 7.1 fails when
+narration does not fit. Since 7.1.1, it always fits — `bodySec` takes the
+max, so audio can never overflow and the lever as written is unreachable. The
+failure worth having is the one it was reaching for: *narration is driving
+the pacing more than the action is*. `sync: strict` therefore fails when the
+floor had to stretch a scene well past its natural length. A scene with no
+action at all is exempt: there is nothing there for narration to outrun.
+
 ### 7.2 Not looking robotic
 
 All of this is **compositor-side**, so it never perturbs the app under test and
@@ -752,11 +795,9 @@ boundaries; a scene whose narration outlasts its action holds instead of
 cutting early; `captions: false` reproduces the current video exactly.
 
 **Phase 6b — Voice.** TTS behind the sync policy, replacing the estimate with
-measured audio duration through the same planner input. The default must be
-free, keyless and local; Piper and Kokoro are the candidates, decided at 6b
-planning on three criteria — cross-platform install footprint, licence, and
-whether word-level timing marks are exposed (needed for lever 3 in section
-7.1). Paid providers optional behind the same interface.
+measured audio duration through the same planner input. Kokoro, chosen on
+evidence and recorded in section 7.1.3; paid providers optional behind the
+same interface.
 *Exit:* the flagship with a voiceover that lands on the action; a deliberately
 over-wordy narration trips `sync: strict` instead of silently looking wrong.
 

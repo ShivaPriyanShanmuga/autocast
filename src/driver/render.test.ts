@@ -6,7 +6,10 @@ import { join } from 'node:path';
 import { parseSource } from '../validate/parse.js';
 import { checkSchema } from '../validate/schema-check.js';
 import { probeVideo } from '../render/encoder.js';
+import { createRequire } from 'node:module';
 import { renderDemo, formatRenderReport, vttPathFor } from './render.js';
+import { speechDurationSec } from '../render/speech.js';
+import { rmsAt } from '../voice/rms.js';
 import { SCENE_TAIL_SEC } from '../render/composition.js';
 
 const dir = mkdtempSync(join(tmpdir(), 'autocast-render-'));
@@ -61,6 +64,21 @@ async function bandLuma(videoPath: string): Promise<{ top: number; bottom: numbe
     top: mean(0, Math.round(img.height * 0.4)),
     bottom: mean(Math.round(img.height * 0.78), img.height),
   };
+}
+
+/** Pull a video's audio out as mono 16-bit wav so it can be measured. */
+async function extractAudio(videoPath: string, wavPath: string): Promise<void> {
+  const { spawn } = await import('node:child_process');
+  await new Promise<void>((resolve, reject) => {
+    const p = spawn(
+      'ffmpeg',
+      ['-y', '-v', 'error', '-i', videoPath, '-vn', '-acodec', 'pcm_s16le',
+       '-ar', '24000', '-ac', '1', wavPath],
+      { stdio: 'ignore', windowsHide: true },
+    );
+    p.on('error', reject);
+    p.on('close', (code) => (code === 0 ? resolve() : reject(new Error(`ffmpeg ${code}`))));
+  });
 }
 
 describe('renderDemo', () => {
@@ -309,5 +327,121 @@ describe('captions', () => {
     await rm(vttPathFor(path), { force: true });
     await renderDemo(script, { outputPath: path });
     await expect(readFile(vttPathFor(path), 'utf8')).rejects.toThrow();
+  }, 180_000);
+});
+
+describe('voice', () => {
+  // The terminal fixture, not the flagship: these test AUDIO, and a
+  // browser plus a web server per case made the suite slow enough to
+  // start flaking other tests on timing.
+  const voiced = (over: Record<string, unknown>) =>
+    ({ ...load('fixtures/terminal/demo.yaml'), voice: { enabled: true, backend: 'fake', ...over } }) as ReturnType<typeof load>;
+
+  it('muxes narration on and keeps the durations agreeing', async () => {
+    const out = join(dir, 'voiced.mp4');
+    const report = await renderDemo(voiced({}), { outputPath: out });
+
+    expect(report.ok, JSON.stringify(report.scenes, null, 2)).toBe(true);
+    const probe = await probeVideo(out);
+    expect(probe.audioCodec).toBe('aac');
+    // -shortest must not trim a frame off the picture.
+    expect(probe.frames).toBe(report.frames);
+  }, 180_000);
+
+  it('has sound at EVERY cue, not just the first two', async () => {
+    // The bug this exists for: a shipped voiceover fell silent after the
+    // second scene. Everything upstream looked right — four clips, four
+    // cues, an aac stream of the right length — because nothing measured
+    // whether sound was actually THERE. Checked as numbers, never by
+    // listening (spec section 3).
+    const out = join(dir, 'cues.mp4');
+    const report = await renderDemo(voiced({}), { outputPath: out });
+    expect(report.ok).toBe(true);
+
+    const wav = join(dir, 'cues.wav');
+    await extractAudio(out, wav);
+
+    const vtt = readFileSync(vttPathFor(out), 'utf8');
+    const starts = [...vtt.matchAll(/^(\d\d):(\d\d):(\d\d\.\d\d\d) -->/gm)].map(
+      (m) => Number(m[1]) * 3600 + Number(m[2]) * 60 + Number(m[3]),
+    );
+    expect(starts.length).toBeGreaterThan(1);
+
+    for (const [i, startSec] of starts.entries()) {
+      const level = await rmsAt(wav, startSec + 0.05, startSec + 0.5);
+      expect(level, `cue ${i} at ${startSec}s is silent`).toBeGreaterThan(0.001);
+    }
+  }, 180_000);
+
+  it('leaves the video mute when voice is not asked for', async () => {
+    const out = join(dir, 'unvoiced.mp4');
+    await renderDemo(load('fixtures/terminal/demo.yaml'), { outputPath: out });
+    expect((await probeVideo(out)).audioCodec).toBeNull();
+  }, 180_000);
+
+  it('paces scenes on the MEASURED duration, not the estimate', async () => {
+    // The point of phase 6a taking a duration rather than a text: with
+    // voice on, the number in the report comes from the audio file.
+    const out = join(dir, 'fast.mp4');
+    await renderDemo(voiced({ rate: 2 }), { outputPath: out });
+
+    const report = JSON.parse(readFileSync(join(dir, 'fast.report.json'), 'utf8')) as {
+      measured: { narrationSec: Record<string, number> };
+    };
+    const greet = report.measured.narrationSec.greet!;
+    expect(greet).toBeGreaterThan(0);
+    // Speaking twice as fast halves it, so the estimate cannot be what
+    // was recorded.
+    expect(greet).toBeLessThan(speechDurationSec('First, a greeting.') * 0.75);
+  }, 180_000);
+
+  it('fails with a named error when the engine is not installed', async () => {
+    const { KokoroVoice } = await import('../voice/kokoro.js');
+    const { VoiceUnavailableError } = await import('../voice/backend.js');
+    let installed = true;
+    try {
+      createRequire(import.meta.url).resolve('kokoro-js');
+    } catch {
+      installed = false;
+    }
+    if (installed) return; // the engine's own test covers the other side
+
+    await expect(
+      new KokoroVoice().synthesize({ text: 'hi', voice: 'af_heart', rate: 1 }, join(dir, 'x.wav')),
+    ).rejects.toThrow(VoiceUnavailableError);
+  }, 60_000);
+});
+
+describe('sync: strict', () => {
+  const wordy = Array.from({ length: 90 }, () => 'extremely').join(' ');
+  const overrun = (sync: 'hold' | 'strict') => {
+    const base = load('fixtures/terminal/demo.yaml');
+    return {
+      ...base,
+      voice: { enabled: true, backend: 'fake', sync },
+      scenes: base.scenes.map((s) => (s.id === 'greet' ? { ...s, narrate: wordy } : s)),
+    } as typeof base;
+  };
+
+  it('refuses to encode when narration is driving the pacing', async () => {
+    // Spec 7.1 lever 4: fail loudly, not a silently ugly video. Since
+    // 7.1.1's floor makes narration always FIT, the failure worth having
+    // is that the picture is being held open to finish a sentence.
+    const out = join(dir, 'strict.mp4');
+    await rm(out, { force: true });
+    const report = await renderDemo(overrun('strict'), { outputPath: out });
+
+    expect(report.ok).toBe(false);
+    expect(report.frames).toBe(0);
+    expect(existsSync(out)).toBe(false);
+    const finding = report.findings.find((f) => f.code === 'H005');
+    expect(finding?.scene).toBe('greet');
+    expect(finding?.detail).toMatch(/held open/);
+  }, 180_000);
+
+  it('renders the same demo anyway in hold mode', async () => {
+    const report = await renderDemo(overrun('hold'), { outputPath: join(dir, 'hold.mp4') });
+    expect(report.ok).toBe(true);
+    expect(report.frames).toBeGreaterThan(0);
   }, 180_000);
 });

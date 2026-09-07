@@ -194,6 +194,21 @@ export const DemoScript = z
       .strict()
       .optional(),
     style: Style.optional(),
+    /**
+     * Voice is opt-in: the default engine is an optional dependency that
+     * pulls roughly 300MB, so a base install must not assume it (spec
+     * section 7.1.3).
+     */
+    voice: z
+      .object({
+        enabled: z.boolean().optional(),
+        backend: z.enum(['kokoro', 'fake']).optional(),
+        voice: z.string().min(1).optional(),
+        rate: z.number().positive().optional(),
+        sync: z.enum(['hold', 'strict']).optional(),
+      })
+      .strict()
+      .optional(),
     sessions: z.record(z.string().min(1), SessionSchema),
     scenes: z.array(SceneSchema).min(1),
   })

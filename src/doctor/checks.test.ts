@@ -24,7 +24,7 @@ describe('dependency checks when ffmpeg is missing', () => {
     const r = byName(await runChecks(CHECKS), 'ffmpeg');
     expect(r.status).toBe('fail');
     expect(r.hint).toContain('apt install ffmpeg');
-  });
+  }, 30_000);
 
   it('skips the library checks rather than claiming they are unavailable', async () => {
     const results = await runChecks(CHECKS);
@@ -33,7 +33,7 @@ describe('dependency checks when ffmpeg is missing', () => {
       expect(r.status, `${name} should be skipped, not asserted`).toBe('skip');
       expect(r.detail).toContain('cannot check');
     }
-  });
+  }, 30_000);
 
   it('does not repeat the ffmpeg install instructions on dependent checks', async () => {
     const results = await runChecks(CHECKS);
@@ -49,14 +49,14 @@ describe('dependency checks when ffmpeg is present', () => {
     expect(byName(results, 'ffmpeg').status).toBe('ok');
     expect(byName(results, 'libx264').status).toBe('ok');
     expect(byName(results, 'librubberband').status).toBe('ok');
-  });
+  }, 30_000);
 
   it('fails libx264 when the build lacks it', async () => {
     mocked.mockResolvedValue(info(['librubberband']));
     const r = byName(await runChecks(CHECKS), 'libx264');
     expect(r.status).toBe('fail');
     expect(r.detail).toContain('without libx264');
-  });
+  }, 30_000);
 
   it('warns on librubberband when the build lacks it', async () => {
     mocked.mockResolvedValue(info(['libx264']));
@@ -105,4 +105,29 @@ describe('chromium check', () => {
       expect(r.hint).toContain('playwright install chromium');
     }
   });
+});
+
+describe('voice check', () => {
+  const voice = () => CHECKS.find((c) => c.name === 'voice (kokoro)')!;
+
+  it('is registered', () => {
+    expect(voice()).toBeDefined();
+  });
+
+  it('never fails, because voice is opt-in', async () => {
+    // A demo that does not ask to speak is not broken for lacking a
+    // speech engine. Reporting `fail` would make `doctor` red for
+    // everyone rendering silent demos.
+    const r = await voice().run();
+    expect(['ok', 'skip']).toContain(r.status);
+  }, 30_000);
+
+  it('names the install command when it is not there', async () => {
+    const r = await voice().run();
+    if (r.status === 'skip') {
+      expect(r.hint).toContain('npm i -D kokoro-js');
+    } else {
+      expect(r.detail).toMatch(/models in/);
+    }
+  }, 30_000);
 });

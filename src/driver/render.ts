@@ -23,6 +23,11 @@ import { planComposition, type SceneFocus } from '../render/composition.js';
 import { captionLineChars, drawCaption, wrapCaption } from '../render/caption.js';
 import { speechDurationSec } from '../render/speech.js';
 import { buildVtt, cuesFromPlan } from '../render/vtt.js';
+import { resolveVoice, voiceBackendFor } from '../voice/index.js';
+import { synthesizeCached } from '../voice/cache.js';
+import { buildTrack, planClips } from '../voice/timeline.js';
+import { checkSync, stretchFor } from '../verify/sync.js';
+import type { SynthesisResult } from '../voice/backend.js';
 import { planFrame } from '../render/frame-plan.js';
 import { findInScreen } from '../render/find-in-screen.js';
 import {
@@ -69,6 +74,9 @@ function toMs(d: number | string | undefined, fallback: number): number {
   return m[2] === 's' ? Number(m[1]) * 1000 : Number(m[1]);
 }
 
+/** Slack on the audio bed so `-shortest` can never trim the picture. */
+const AUDIO_TAIL_PAD_SEC = 0.25;
+
 export interface RenderOptions {
   outputPath?: string;
 }
@@ -97,6 +105,7 @@ export async function renderDemo(
     }
   }
   const narrates = Object.keys(narrationByScene).length > 0;
+  const voice = resolveVoice(script);
 
   // More than one session, or any explicit layout, needs the composed
   // path; a single session keeps the simpler phase 1/2 fast paths.
@@ -160,11 +169,15 @@ export async function renderDemo(
     sec: Number(((s2.endedAt - s2.startedAt) / 1000).toFixed(3)),
   }));
 
-  const finish = async (frames: number, durationSec: number): Promise<string> =>
+  const finish = async (
+    frames: number,
+    durationSec: number,
+    ok = capture.ok,
+  ): Promise<string> =>
     writeReport(
       outputPath,
       buildReport({
-        ok: capture.ok,
+        ok,
         scenes: sceneSecs,
         findings,
         abortedAt: capture.abortedAt,
@@ -213,6 +226,75 @@ export async function renderDemo(
       frames: 0,
       durationSec: 0,
     };
+  }
+
+  // Synthesize AFTER capture, never alongside it: inference pegs the CPU
+  // and capture timings are what drive the pacing (spec 7.1.3).
+  const synthesized: Record<string, SynthesisResult> = {};
+  if (voice.enabled && narrates) {
+    const backend = voiceBackendFor(voice);
+    const cacheDir = join('.autocast', 'voice');
+    const sceneSecById = new Map(sceneSecs.map((s2) => [s2.id, s2.sec]));
+
+    for (const [id, text] of Object.entries(narrationTextByScene)) {
+      // Lever 3 before the floor: absorb a small overrun by speaking a
+      // little faster rather than by holding the picture (spec 7.1.3).
+      //
+      // This costs a second synthesis for any scene that needs a stretch,
+      // because how long a voice takes is not knowable without asking it
+      // — the word-count estimate is only good to about 11%, which is the
+      // size of the whole adjustment. Both passes are cached, so the cost
+      // is paid once ever, not once per render.
+      const dry = await synthesizeCached(
+        backend,
+        { text, voice: voice.voice, rate: voice.rate },
+        cacheDir,
+      );
+      const stretch = stretchFor(dry.durationSec, sceneSecById.get(id) ?? 0);
+      const result =
+        stretch === 1
+          ? dry
+          : await synthesizeCached(
+              backend,
+              { text, voice: voice.voice, rate: voice.rate * stretch },
+              cacheDir,
+            );
+      synthesized[id] = result;
+      // The MEASURED duration replaces the estimate. This is the whole
+      // point of 6a taking a duration rather than a text.
+      narrationByScene[id] = result.durationSec;
+    }
+
+    const syncFindings = checkSync(
+      Object.keys(narrationTextByScene).map((id) => ({
+        id,
+        narrationSec: synthesized[id]?.durationSec ?? 0,
+        actionSec: sceneSecById.get(id) ?? 0,
+      })),
+      voice.sync,
+    );
+    findings.push(...syncFindings);
+
+    // Lever 4 (spec 7.1): fail loudly rather than hand back a silently
+    // ugly video. Checked BEFORE rendering, because the durations are
+    // already known and encoding a video we intend to reject would cost
+    // minutes to produce nothing.
+    if (syncFindings.length > 0) {
+      await rm(outputPath, { force: true });
+      // The report on disk must agree with what we return; capture
+      // succeeded, but the render did not.
+      const reportPath = await finish(0, 0, false);
+      return {
+        ok: false,
+        outputPath,
+        scenes,
+        findings,
+        reportPath,
+        contactSheetPath: null,
+        frames: 0,
+        durationSec: 0,
+      };
+    }
   }
 
   if (needsComposition) {
@@ -473,11 +555,30 @@ export async function renderDemo(
       }
     }
 
+    // One track, anchored on the same windows the captions came from, so
+    // voice and captions cannot drift apart.
+    let audioPath: string | undefined;
+    const clips = planClips(plan, synthesized);
+    if (clips.length > 0) {
+      audioPath = join('.autocast', 'voice', 'track.wav');
+      // The bed is deliberately LONGER than the picture.
+      //
+      // `-shortest` cuts every stream to the shortest one, so the audio
+      // must never be the shorter. Sizing it to the exact frame count is
+      // not enough: AAC quantises to 1024-sample frames (~43ms at 24kHz),
+      // so the encoded track can land just under the video and take a
+      // real frame of picture with it. The surplus is silence, and
+      // `-shortest` trims it back to the video's length.
+      const videoSec = Math.ceil(plan.totalSec * fps) / fps;
+      await buildTrack(clips, videoSec + AUDIO_TAIL_PAD_SEC, audioPath);
+    }
+
     const encoded = await encodeFrames(composedFrames(), {
       width: canvasW,
       height: canvasH,
       fps,
       outputPath,
+      ...(audioPath === undefined ? {} : { audioPath }),
     });
 
     // Same cues the burned-in captions came from, so the sidecar is a
