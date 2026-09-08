@@ -801,10 +801,18 @@ same interface.
 *Exit:* the flagship with a voiceover that lands on the action; a deliberately
 over-wordy narration trips `sync: strict` instead of silently looking wrong.
 
-**Phase 7 — Agent surface and release.** Claude Code skill, `AGENTS.md`, docs,
-`autocast init`, npm publish.
+**Phase 7 — Agent surface.** Claude Code skill, `AGENTS.md`, README, LICENCE,
+`autocast init`, and a failure playbook that turns each failure into one
+concrete next action — an agent that has to guess pays a whole render per
+guess, which is the expensive step in the loop.
 *Exit:* in a different repo, an agent produces an mp4 without the schema being
-explained to it by hand.
+explained to it by hand. Executed as a test rather than asserted: a temp
+directory runs init, validate and render and gets h264 out.
+
+**Publishing is deliberately NOT part of this phase.** `autocast` is taken on
+npm by an unrelated package, so a name has to be chosen before anything can
+ship. Everything else is done and verified locally; `npm publish` stays a
+single step behind that decision.
 
 Phases 0-4 deliver a complete, useful silent tool; phase 5 makes it one people
 will actually want to publish. Narration is additive on top of both, by design.

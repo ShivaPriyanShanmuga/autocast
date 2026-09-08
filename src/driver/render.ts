@@ -47,6 +47,7 @@ import { fitGeometry, FrameRenderer } from '../render/frame.js';
 import { frameCount, replayCast } from '../render/replay.js';
 import { DEFAULT_THEME } from '../render/theme.js';
 import { captureDemo } from './capture.js';
+import { nextStepFor } from '../cli/playbook.js';
 
 export interface RenderReport {
   ok: boolean;

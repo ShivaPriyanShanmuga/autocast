@@ -1,7 +1,22 @@
 {
   "name": "autocast",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Agent-driven demo video recorder for web and non-web projects",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ShivaPriyanShanmuga/autocast.git"
+  },
+  "keywords": [
+    "demo",
+    "video",
+    "screencast",
+    "recorder",
+    "agent",
+    "terminal",
+    "playwright",
+    "ffmpeg"
+  ],
   "type": "module",
   "engines": {
     "node": ">=20"
@@ -11,7 +26,9 @@
   },
   "files": [
     "dist",
-    "scripts"
+    "scripts",
+    "AGENTS.md",
+    "skills"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",

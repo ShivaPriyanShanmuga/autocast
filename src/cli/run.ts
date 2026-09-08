@@ -1,4 +1,5 @@
 import { doctorCommand } from './doctor-command.js';
+import { initCommand } from './init-command.js';
 import { renderCommand } from './render-command.js';
 import { schemaCommand } from './schema-command.js';
 import { validateCommand } from './validate-command.js';
@@ -8,7 +9,8 @@ export interface CliIO {
   err(text: string): void;
 }
 
-export const VERSION = '0.0.0';
+/** Kept in step with package.json by a test; there is no build step to sync them. */
+export const VERSION = '0.1.0';
 
 const USAGE = `autocast ${VERSION} — agent-driven demo video recorder
 
@@ -16,6 +18,7 @@ Usage:
   autocast <command> [options]
 
 Commands:
+  init              Scaffold a demo script for this project
   render <file>     Capture and encode a demo to video
   validate <file>   Check a demo script without running it
   doctor            Check system dependencies
@@ -41,6 +44,10 @@ export async function runCli(argv: string[], io: CliIO): Promise<number> {
     io.err('autocast: no command given\n');
     io.err(USAGE);
     return 2;
+  }
+
+  if (command === 'init') {
+    return initCommand(argv.slice(1), io);
   }
 
   if (command === 'validate') {
