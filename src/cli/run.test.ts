@@ -38,3 +38,11 @@ describe('runCli', () => {
     expect(c.err()).toContain('unknown command "frobnicate"');
   });
 });
+
+describe('init in the CLI', () => {
+  it('is listed in the usage text', async () => {
+    const out: string[] = [];
+    await runCli(['--help'], { out: (t) => out.push(t), err: () => {} });
+    expect(out.join('')).toMatch(/init/);
+  });
+});
