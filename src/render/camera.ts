@@ -97,3 +97,49 @@ export function browserRectToPixels(
     height: box.height * scale,
   };
 }
+
+/**
+ * The camera partway through a zoom.
+ *
+ * Interpolates the whole RECT from the full frame to the final framing,
+ * rather than asking `cameraRect` for a clamped rect at each intermediate
+ * zoom. That difference is the whole point.
+ *
+ * Clamping per frame makes the camera slide into a corner on its way in,
+ * because the clamp releases on each axis at a different zoom level. On
+ * the shipped flagship that read as the background disappearing off the
+ * right and bottom together, the top collapsing a third of a second
+ * later, and the left band GROWING from 56px to 95px — a wobble, not a
+ * zoom. Interpolating the rect moves all four edges by the same fraction
+ * of their travel on every frame, which is what reads as smooth.
+ *
+ * `zoom` may exceed `target`, because the spring overshoots and settles;
+ * the rect simply carries a little past its mark, which is the point of
+ * a spring.
+ */
+export function zoomedCamera(
+  surface: { width: number; height: number },
+  focus: Rect | null,
+  zoom: number,
+  target: number,
+): Rect {
+  const full = { x: 0, y: 0, width: surface.width, height: surface.height };
+  if (focus === null || target <= 1) return full;
+
+  const progress = (zoom - 1) / (target - 1);
+  if (progress <= 0) return full;
+
+  const end = cameraRect(surface, focus, target);
+  const at = (from: number, to: number): number => from + (to - from) * progress;
+
+  const width = Math.max(1, at(full.width, end.width));
+  const height = Math.max(1, at(full.height, end.height));
+  // `end` is already inside the surface and progress is positive, so an
+  // overshoot moves the rect further in, never off the edge.
+  return {
+    x: Math.max(0, Math.min(at(full.x, end.x), surface.width - width)),
+    y: Math.max(0, Math.min(at(full.y, end.y), surface.height - height)),
+    width,
+    height,
+  };
+}
