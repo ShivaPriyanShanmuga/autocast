@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { parseSource } from './parse.js';
 
-const SAMPLE = `autocast: 1
+const SAMPLE = `autodemo: 1
 output:
   path: docs/demo.mp4
 sessions:
@@ -15,7 +15,7 @@ scenes:
 describe('parseSource', () => {
   it('returns the parsed value', () => {
     const p = parseSource(SAMPLE);
-    expect((p.value as Record<string, unknown>).autocast).toBe(1);
+    expect((p.value as Record<string, unknown>).autodemo).toBe(1);
   });
 
   it('locates a top-level key', () => {

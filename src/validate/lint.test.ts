@@ -12,7 +12,7 @@ function lintYaml(text: string) {
 
 const codes = (text: string) => lintYaml(text).map((d) => d.code);
 
-const BASE = `autocast: 1
+const BASE = `autodemo: 1
 output:
   path: docs/demo.mp4
 sessions:

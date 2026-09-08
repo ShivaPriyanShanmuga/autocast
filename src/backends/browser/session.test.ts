@@ -30,7 +30,7 @@ const open: BrowserSession[] = [];
 const dirs: string[] = [];
 
 async function session(viewport: [number, number] = [640, 400]) {
-  const dir = mkdtempSync(join(tmpdir(), 'autocast-bs-'));
+  const dir = mkdtempSync(join(tmpdir(), 'autodemo-bs-'));
   dirs.push(dir);
   const s = await openBrowserSession({ viewport, framesDir: join(dir, 'frames') });
   open.push(s);
@@ -48,7 +48,7 @@ describe('BrowserSession', () => {
   it('loads a page and reads its content', async () => {
     const s = await session();
     await s.goto(BASE);
-    expect(await s.page.title()).toContain('autocast');
+    expect(await s.page.title()).toContain('autodemo');
   }, 60000);
 
   it('captures frames at the CSS viewport size, not deviceScaleFactor', async () => {

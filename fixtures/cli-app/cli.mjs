@@ -46,7 +46,7 @@ async function dash() {
   try {
     for (let tick = 0; tick < 8; tick++) {
       process.stdout.write('\x1b[2J\x1b[H'); // clear + home
-      process.stdout.write('┌─ autocast dash ─┐\n');
+      process.stdout.write('┌─ autodemo dash ─┐\n');
       process.stdout.write(`│ tick ${String(tick).padStart(2)}         │\n`);
       process.stdout.write(`│ cpu  ${String(30 + tick * 5).padStart(2)}%        │\n`);
       process.stdout.write('└─────────────────┘\n');

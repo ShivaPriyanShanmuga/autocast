@@ -6,7 +6,7 @@ import { cacheKey, cachedPath, synthesizeCached } from './cache.js';
 import { FakeVoice } from './fake.js';
 import type { SynthesisRequest, SynthesisResult, VoiceBackend } from './backend.js';
 
-const dir = mkdtempSync(join(tmpdir(), 'autocast-vcache-'));
+const dir = mkdtempSync(join(tmpdir(), 'autodemo-vcache-'));
 afterAll(() => rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }));
 
 const req = (over: Partial<SynthesisRequest> = {}): SynthesisRequest => ({

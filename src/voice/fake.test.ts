@@ -6,7 +6,7 @@ import { FakeVoice } from './fake.js';
 import { speechDurationSec } from '../render/speech.js';
 import { probeAudio } from './probe.js';
 
-const dir = mkdtempSync(join(tmpdir(), 'autocast-fake-'));
+const dir = mkdtempSync(join(tmpdir(), 'autodemo-fake-'));
 afterAll(() => rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }));
 
 const req = (text: string) => ({ text, voice: 'test', rate: 1 });

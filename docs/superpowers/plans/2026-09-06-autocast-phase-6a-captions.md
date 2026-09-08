@@ -1,4 +1,4 @@
-# autocast Phase 6a — Captions — Implementation Plan
+# autodemo Phase 6a — Captions — Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -8,7 +8,7 @@
 
 **Tech Stack:** No new dependencies.
 
-**Spec:** `docs/superpowers/specs/2026-09-04-autocast-design.md` — especially §7.1, §7.1.1 and §7.1.2.
+**Spec:** `docs/superpowers/specs/2026-09-04-autodemo-design.md` — especially §7.1, §7.1.1 and §7.1.2.
 
 ## Global Constraints
 
@@ -215,4 +215,4 @@ timeline to hang a cue on.
 3. A scene whose narration is longer than its action visibly holds for the
    narration instead of cutting early.
 4. `style: { captions: false }` produces the current video, unchanged.
-5. `autocast validate` warns when narration cannot fit in two caption lines.
+5. `autodemo validate` warns when narration cannot fit in two caption lines.

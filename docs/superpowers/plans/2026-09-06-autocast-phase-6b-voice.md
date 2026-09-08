@@ -1,4 +1,4 @@
-# autocast Phase 6b — Voice — Implementation Plan
+# autodemo Phase 6b — Voice — Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -8,7 +8,7 @@
 
 **Tech Stack:** `kokoro-js` as an OPTIONAL dependency, not installed by default. Voice is opt-in; a base install must not pull ~300MB of onnxruntime.
 
-**Spec:** `docs/superpowers/specs/2026-09-04-autocast-design.md` — especially §7.1, §7.1.2 and §7.1.3.
+**Spec:** `docs/superpowers/specs/2026-09-04-autodemo-design.md` — especially §7.1, §7.1.2 and §7.1.3.
 
 ## Spike findings this plan is built on (2026-09-06, Node 24, win32 x64)
 
@@ -247,5 +247,5 @@ word-count estimate when voice is off.
    error instead of silently producing a stretched video.
 3. `voice:` absent reproduces the 6a output exactly.
 4. A second render costs no synthesis.
-5. `autocast doctor` explains how to enable voice, and does not fail when
+5. `autodemo doctor` explains how to enable voice, and does not fail when
    it is simply not wanted.

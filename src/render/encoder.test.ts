@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { encodeFrames, probeVideo } from './encoder.js';
 
-const dir = mkdtempSync(join(tmpdir(), 'autocast-enc-'));
+const dir = mkdtempSync(join(tmpdir(), 'autodemo-enc-'));
 afterAll(() =>
   // Windows can hold a brief lock on a just-closed file; retry rather
   // than fail the suite on cleanup.

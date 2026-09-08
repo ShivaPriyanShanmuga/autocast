@@ -31,7 +31,7 @@ const open: BrowserSession[] = [];
 const dirs: string[] = [];
 
 async function ctx() {
-  const dir = mkdtempSync(join(tmpdir(), 'autocast-ct-'));
+  const dir = mkdtempSync(join(tmpdir(), 'autodemo-ct-'));
   dirs.push(dir);
   const session = await openBrowserSession({
     viewport: [640, 400],

@@ -1,4 +1,4 @@
-# autocast
+# autodemo
 
 Agent-driven demo video recorder. A coding agent writes a YAML script,
 runs one command, and gets a **real recorded mp4** of a terminal and a
@@ -29,8 +29,8 @@ where a passing result would go.
 ## Install
 
 ```bash
-npm install --save-dev autocast     # not yet published; see Status
-npx autocast doctor                  # checks ffmpeg, Chromium, node-pty
+npm install --save-dev autodemo
+npx autodemo doctor    # checks ffmpeg, Chromium, node-pty
 ```
 
 `doctor` reports every dependency with a copy-pasteable fix, and never
@@ -39,15 +39,15 @@ claims a check passed when it could not run it.
 ## Use
 
 ```bash
-npx autocast init                  # scaffold demo.yaml for this project
-npx autocast validate demo.yaml    # static check, no capture — free
-npx autocast render demo.yaml      # record, encode, report
+npx autodemo init                  # scaffold demo.yaml for this project
+npx autodemo validate demo.yaml    # static check, no capture — free
+npx autodemo render demo.yaml      # record, encode, report
 ```
 
 ## A script
 
 ```yaml
-autocast: 1
+autodemo: 1
 output:
   path: docs/demo.mp4
   canvas: [1280, 720]
@@ -134,19 +134,19 @@ error with `voice: { sync: strict }`.
 ## For agents
 
 `AGENTS.md` is written for coding agents and is the thing to point one
-at. A Claude Code skill lives in `skills/autocast/`.
+at. A Claude Code skill lives in `skills/autodemo/`.
 
 ## Status
 
 Phases 0–7 complete: terminal and browser capture, composition, pacing,
 verification, presentation, captions and voice, agent surface.
 
-**Not published to npm** — the name `autocast` is taken by an unrelated
-package. Use it from a clone or via `npm link` until it is renamed.
+Published as [`autodemo`](https://www.npmjs.com/package/autodemo). The
+project's git history and design docs use its working name, `autocast`.
 
 ## Design
 
-`docs/superpowers/specs/2026-09-04-autocast-design.md` is the design
+`docs/superpowers/specs/2026-09-04-autodemo-design.md` is the design
 document, including the decisions that were overturned by spikes and why.
 
 ## Licence

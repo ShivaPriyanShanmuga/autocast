@@ -1,14 +1,14 @@
-# autocast Phase 4 — Verification hardening — Implementation Plan
+# autodemo Phase 4 — Verification hardening — Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Make it structurally impossible for autocast to hand back a plausible-looking video of a broken demo.
+**Goal:** Make it structurally impossible for autodemo to hand back a plausible-looking video of a broken demo.
 
 **Architecture:** A failing scene aborts the run before anything is encoded, so no misleading artifact is ever written. A heuristic pass catches failures nobody predicted, using the character grid and DOM text we already own rather than any vision model. The report splits into a deterministic core that CI compares and a measured annex that varies run to run. On failure a contact sheet is written to disk and its path printed — never opened.
 
 **Tech Stack:** No new dependencies.
 
-**Spec:** `docs/superpowers/specs/2026-09-04-autocast-design.md` — especially §3 constraint 2, §8, §10 and §12.
+**Spec:** `docs/superpowers/specs/2026-09-04-autodemo-design.md` — especially §3 constraint 2, §8, §10 and §12.
 
 ## Measured baseline (2026-09-05)
 
@@ -481,7 +481,7 @@ git commit -m "feat: heuristics for unpredicted failures, with no OCR"
 
 **Interfaces:**
 - Produces:
-  - `interface ReportCore { autocast: 1; ok: boolean; scenes: Array<{ id: string; ok: boolean; assertions: Array<{ name: string; ok: boolean; detail?: string }> }>; findings: Finding[]; abortedAt: string | null }`
+  - `interface ReportCore { autodemo: 1; ok: boolean; scenes: Array<{ id: string; ok: boolean; assertions: Array<{ name: string; ok: boolean; detail?: string }> }>; findings: Finding[]; abortedAt: string | null }`
   - `interface ReportMeasured { frames: number; durationSec: number; sceneSec: Record<string, number> }`
   - `interface RenderReportFile { core: ReportCore; measured: ReportMeasured }`
   - `function buildReport(...): RenderReportFile`
@@ -501,7 +501,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { buildReport, writeReport } from './report.js';
 
-const dir = mkdtempSync(join(tmpdir(), 'autocast-report-'));
+const dir = mkdtempSync(join(tmpdir(), 'autodemo-report-'));
 afterAll(() => rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }));
 
 const scenes = [
@@ -601,7 +601,7 @@ export interface ReportSceneCore {
 }
 
 export interface ReportCore {
-  autocast: 1;
+  autodemo: 1;
   ok: boolean;
   scenes: ReportSceneCore[];
   findings: Finding[];
@@ -644,7 +644,7 @@ export interface BuildReportInput {
 export function buildReport(input: BuildReportInput): RenderReportFile {
   return {
     core: {
-      autocast: 1,
+      autodemo: 1,
       ok: input.ok,
       scenes: input.scenes.map((s) => ({
         id: s.id,
@@ -724,7 +724,7 @@ import { join } from 'node:path';
 import { loadImage } from '@napi-rs/canvas';
 import { writeContactSheet } from './contact-sheet.js';
 
-const dir = mkdtempSync(join(tmpdir(), 'autocast-sheet-'));
+const dir = mkdtempSync(join(tmpdir(), 'autodemo-sheet-'));
 afterAll(() => rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }));
 
 const size = { width: 64, height: 36 };
@@ -843,7 +843,7 @@ function pickEvenly<T>(items: readonly T[], count: number): T[] {
 ```
 
 Wire into `renderDemo`'s failure path: sample frames from the failing
-scene, write `.autocast/failed/<scene>-contact.png`, and put the path on
+scene, write `.autodemo/failed/<scene>-contact.png`, and put the path on
 the report. **Do not read it back anywhere.**
 
 - [ ] **Step 4: Run tests**
@@ -880,7 +880,7 @@ import { parseSource } from '../validate/parse.js';
 import { checkSchema } from '../validate/schema-check.js';
 import { renderDemo, formatRenderReport } from '../driver/render.js';
 
-const dir = mkdtempSync(join(tmpdir(), 'autocast-det-'));
+const dir = mkdtempSync(join(tmpdir(), 'autodemo-det-'));
 afterAll(() => rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }));
 
 function load(path: string) {

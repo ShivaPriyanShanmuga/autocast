@@ -1,5 +1,5 @@
 {
-  "name": "autocast",
+  "name": "autodemo",
   "version": "0.1.0",
   "description": "Agent-driven demo video recorder for web and non-web projects",
   "license": "MIT",
@@ -22,7 +22,7 @@
     "node": ">=20"
   },
   "bin": {
-    "autocast": "./dist/cli/index.js"
+    "autodemo": "./dist/cli/index.js"
   },
   "files": [
     "dist",

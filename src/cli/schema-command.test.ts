@@ -7,7 +7,7 @@ function captureIO() {
   return { io, out: () => out.join('\n') };
 }
 
-describe('autocast schema', () => {
+describe('autodemo schema', () => {
   it('prints valid JSON', async () => {
     const c = captureIO();
     const code = await runCli(['schema'], c.io);
@@ -21,7 +21,7 @@ describe('autocast schema', () => {
     const schema = JSON.parse(c.out()) as Record<string, unknown>;
     const props = (schema.properties ?? {}) as Record<string, unknown>;
     expect(Object.keys(props)).toEqual(
-      expect.arrayContaining(['autocast', 'output', 'sessions', 'scenes']),
+      expect.arrayContaining(['autodemo', 'output', 'sessions', 'scenes']),
     );
   });
 });

@@ -1,4 +1,4 @@
-autocast: 1
+autodemo: 1
 output:
   path: docs/flagship-demo-voiced.mp4
   canvas: [1280, 720]
@@ -11,7 +11,7 @@ output:
 # make `npm test` fail for anyone who has not installed it.
 #
 #   npm i -D kokoro-js
-#   npx autocast render fixtures/flagship/demo-voiced.yaml
+#   npx autodemo render fixtures/flagship/demo-voiced.yaml
 voice:
   enabled: true
   backend: kokoro

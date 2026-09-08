@@ -1,4 +1,4 @@
-# autocast — for agents
+# autodemo — for agents
 
 Record a real demo video of what you just built. Not stitched
 screenshots: a genuine screen recording of a real terminal and a real
@@ -7,9 +7,9 @@ browser, encoded to mp4 and committed with the code.
 ## The loop
 
 ```
-npx autocast init                  # scaffold demo.yaml + schema
-npx autocast validate demo.yaml    # static check, no capture — free, run it often
-npx autocast render demo.yaml      # records and encodes; prints a short report
+npx autodemo init                  # scaffold demo.yaml + schema
+npx autodemo validate demo.yaml    # static check, no capture — free, run it often
+npx autodemo render demo.yaml      # records and encodes; prints a short report
 ```
 
 `validate` never executes anything, so run it after every edit. `render`
@@ -37,10 +37,10 @@ want is an assertion.
 Get the schema — do not guess at it, and do not trust an example over it:
 
 ```
-npx autocast schema
+npx autodemo schema
 ```
 
-`init` also writes `.autocast/schema.json` and puts a
+`init` also writes `.autodemo/schema.json` and puts a
 `# yaml-language-server: $schema=` line at the top of the scaffold, so an
 editor will autocomplete and catch mistakes before `validate` does.
 
@@ -81,5 +81,5 @@ proves a side effect happened, and shows the state that proves it.
   demo can never be mistaken for a passing one.
 - **Idle time is compressed automatically**, but a `settle:` you asked
   for is never compressed — deliberate pacing is not dead air.
-- Run `npx autocast doctor` if anything fails for an environmental
+- Run `npx autodemo doctor` if anything fails for an environmental
   reason; it reports every dependency with a copy-pasteable fix.

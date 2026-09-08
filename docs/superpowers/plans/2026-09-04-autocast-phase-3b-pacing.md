@@ -1,4 +1,4 @@
-# autocast Phase 3b — Transitions and idle compression — Implementation Plan
+# autodemo Phase 3b — Transitions and idle compression — Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -8,7 +8,7 @@
 
 **Tech Stack:** No new dependencies.
 
-**Spec:** `docs/superpowers/specs/2026-09-04-autocast-design.md` — especially §4.2, §7.1 and §7.2.
+**Spec:** `docs/superpowers/specs/2026-09-04-autodemo-design.md` — especially §4.2, §7.1 and §7.2.
 
 ## Global Constraints
 

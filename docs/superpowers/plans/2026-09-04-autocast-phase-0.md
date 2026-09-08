@@ -1,14 +1,14 @@
-# autocast Phase 0 — Foundations and validate — Implementation Plan
+# autodemo Phase 0 — Foundations and validate — Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Ship a working `autocast` CLI that can validate a demo script statically and report missing system dependencies — with zero capture, encoding, or browser code.
+**Goal:** Ship a working `autodemo` CLI that can validate a demo script statically and report missing system dependencies — with zero capture, encoding, or browser code.
 
 **Architecture:** A Zod schema is the single source of truth for the demo-script format; TypeScript types are inferred from it and JSON Schema is generated from it, so the three can never drift. YAML is parsed with position tracking so every diagnostic points at a real line and column. Validation runs in two stages — schema shape, then semantic lint — and both emit the same `Diagnostic` shape to one formatter.
 
 **Tech Stack:** TypeScript 5.9 on Node 20+, ESM. `zod` v4 (schema + JSON Schema generation), `yaml` v2 (parsing with source positions), `vitest` v3 (tests). CLI argument parsing uses `node:util`'s built-in `parseArgs` — no dependency. Total runtime dependencies: 2.
 
-**Spec:** `docs/superpowers/specs/2026-09-04-autocast-design.md`
+**Spec:** `docs/superpowers/specs/2026-09-04-autodemo-design.md`
 
 ## Global Constraints
 
@@ -68,7 +68,7 @@ describe('runCli', () => {
     const c = captureIO();
     const code = await runCli(['--help'], c.io);
     expect(code).toBe(0);
-    expect(c.out()).toContain('autocast');
+    expect(c.out()).toContain('autodemo');
     expect(c.out()).toContain('validate');
   });
 
@@ -99,12 +99,12 @@ Expected: FAIL — cannot resolve `./run.js`.
 
 ```json
 {
-  "name": "autocast",
+  "name": "autodemo",
   "version": "0.0.0",
   "description": "Agent-driven demo video recorder for web and non-web projects",
   "type": "module",
   "engines": { "node": ">=20" },
-  "bin": { "autocast": "./dist/cli/index.js" },
+  "bin": { "autodemo": "./dist/cli/index.js" },
   "files": ["dist"],
   "scripts": {
     "build": "tsc -p tsconfig.json",
@@ -166,7 +166,7 @@ export default defineConfig({
 node_modules/
 dist/
 coverage/
-.autocast/
+.autodemo/
 *.tsbuildinfo
 ```
 
@@ -184,10 +184,10 @@ export interface CliIO {
 
 export const VERSION = '0.0.0';
 
-const USAGE = `autocast ${VERSION} — agent-driven demo video recorder
+const USAGE = `autodemo ${VERSION} — agent-driven demo video recorder
 
 Usage:
-  autocast <command> [options]
+  autodemo <command> [options]
 
 Commands:
   validate <file>   Check a demo script without running it
@@ -211,12 +211,12 @@ export async function runCli(argv: string[], io: CliIO): Promise<number> {
 
   const command = argv[0];
   if (command === undefined) {
-    io.err('autocast: no command given\n');
+    io.err('autodemo: no command given\n');
     io.err(USAGE);
     return 2;
   }
 
-  io.err(`autocast: unknown command "${command}"\n`);
+  io.err(`autodemo: unknown command "${command}"\n`);
   io.err(USAGE);
   return 2;
 }
@@ -236,7 +236,7 @@ const io: CliIO = {
 runCli(process.argv.slice(2), io).then(
   (code) => { process.exitCode = code; },
   (error: unknown) => {
-    io.err(`autocast: ${error instanceof Error ? error.message : String(error)}`);
+    io.err(`autodemo: ${error instanceof Error ? error.message : String(error)}`);
     process.exitCode = 2;
   },
 );
@@ -354,7 +354,7 @@ import { describe, it, expect } from 'vitest';
 import { DemoScript } from './demo.js';
 
 const minimal = {
-  autocast: 1,
+  autodemo: 1,
   output: { path: 'docs/demo.mp4' },
   sessions: { api: { backend: 'terminal' } },
   scenes: [{ id: 'boot', use: 'api', steps: [{ type: 'ls' }] }],
@@ -373,7 +373,7 @@ describe('DemoScript', () => {
   });
 
   it('rejects a wrong version literal', () => {
-    const r = DemoScript.safeParse({ ...minimal, autocast: 2 });
+    const r = DemoScript.safeParse({ ...minimal, autodemo: 2 });
     expect(r.success).toBe(false);
   });
 
@@ -607,7 +607,7 @@ const Style = z
 
 export const DemoScript = z
   .object({
-    autocast: z.literal(1),
+    autodemo: z.literal(1),
     output: z
       .object({
         path: z.string().min(1),
@@ -668,7 +668,7 @@ Create `src/validate/parse.test.ts`:
 import { describe, it, expect } from 'vitest';
 import { parseSource } from './parse.js';
 
-const SAMPLE = `autocast: 1
+const SAMPLE = `autodemo: 1
 output:
   path: docs/demo.mp4
 sessions:
@@ -682,7 +682,7 @@ scenes:
 describe('parseSource', () => {
   it('returns the parsed value', () => {
     const p = parseSource(SAMPLE);
-    expect((p.value as Record<string, unknown>).autocast).toBe(1);
+    expect((p.value as Record<string, unknown>).autodemo).toBe(1);
   });
 
   it('locates a top-level key', () => {
@@ -956,7 +956,7 @@ import { describe, it, expect } from 'vitest';
 import { parseSource } from './parse.js';
 import { checkSchema } from './schema-check.js';
 
-const VALID = `autocast: 1
+const VALID = `autodemo: 1
 output:
   path: docs/demo.mp4
 sessions:
@@ -999,9 +999,9 @@ describe('checkSchema', () => {
   });
 
   it('includes the failing path in the message', () => {
-    const bad = VALID.replace('autocast: 1', 'autocast: 2');
+    const bad = VALID.replace('autodemo: 1', 'autodemo: 2');
     const r = checkSchema(parseSource(bad));
-    expect(r.diagnostics[0]!.message).toContain('autocast');
+    expect(r.diagnostics[0]!.message).toContain('autodemo');
   });
 });
 ```
@@ -1126,7 +1126,7 @@ function lintYaml(text: string) {
 
 const codes = (text: string) => lintYaml(text).map((d) => d.code);
 
-const BASE = `autocast: 1
+const BASE = `autodemo: 1
 output:
   path: docs/demo.mp4
 sessions:
@@ -1509,7 +1509,7 @@ describe('validateText', () => {
 `fixtures/mixed/demo.yaml` — the flagship from spec §5:
 
 ```yaml
-autocast: 1
+autodemo: 1
 output:
   path: docs/demo.mp4
   canvas: [1280, 720]
@@ -1576,7 +1576,7 @@ scenes:
 `fixtures/broken/undeclared-session.yaml`:
 
 ```yaml
-autocast: 1
+autodemo: 1
 output:
   path: docs/demo.mp4
 sessions:
@@ -1592,7 +1592,7 @@ scenes:
 `fixtures/broken/bad-regex.yaml`:
 
 ```yaml
-autocast: 1
+autodemo: 1
 output:
   path: docs/demo.mp4
 sessions:
@@ -1611,7 +1611,7 @@ scenes:
 `fixtures/broken/wrong-backend.yaml`:
 
 ```yaml
-autocast: 1
+autodemo: 1
 output:
   path: docs/demo.mp4
 sessions:
@@ -1629,7 +1629,7 @@ scenes:
 `fixtures/broken/yaml-syntax.yaml`:
 
 ```yaml
-autocast: 1
+autodemo: 1
 scenes:
   - id: boot
    use: api
@@ -1640,7 +1640,7 @@ scenes:
 unless `--strict` is passed:
 
 ```yaml
-autocast: 1
+autodemo: 1
 output:
   path: docs/demo.mp4
 sessions:
@@ -1701,7 +1701,7 @@ function captureIO() {
   return { io, out: () => out.join('\n'), err: () => err.join('\n') };
 }
 
-describe('autocast validate', () => {
+describe('autodemo validate', () => {
   it('exits 0 on the flagship fixture', async () => {
     const c = captureIO();
     const code = await runCli(['validate', 'fixtures/mixed/demo.yaml'], c.io);
@@ -1766,7 +1766,7 @@ export async function validateCommand(argv: string[], io: CliIO): Promise<number
   const file = argv.find((a) => !a.startsWith('--'));
 
   if (file === undefined) {
-    io.err('autocast validate: expects a file\n\nUsage: autocast validate [--strict] <file>');
+    io.err('autodemo validate: expects a file\n\nUsage: autodemo validate [--strict] <file>');
     return 2;
   }
 
@@ -1775,7 +1775,7 @@ export async function validateCommand(argv: string[], io: CliIO): Promise<number
     text = readFileSync(file, 'utf8');
   } catch (error) {
     io.err(
-      `autocast validate: cannot read ${file}: ${
+      `autodemo validate: cannot read ${file}: ${
         error instanceof Error ? error.message : String(error)
       }`,
     );
@@ -1814,7 +1814,7 @@ Expected: PASS — all suites green.
 
 ```bash
 git add src/validate/validate.ts src/validate/validate.test.ts src/cli/validate-command.ts src/cli/validate-command.test.ts src/cli/run.ts fixtures/
-git commit -m "feat: autocast validate command with fixtures"
+git commit -m "feat: autodemo validate command with fixtures"
 ```
 
 ---
@@ -1960,7 +1960,7 @@ export interface Check {
 }
 
 const FFMPEG_INSTALL = [
-  '    autocast needs ffmpeg to encode video.',
+  '    autodemo needs ffmpeg to encode video.',
   '    Windows:  winget install Gyan.FFmpeg',
   '    macOS:    brew install ffmpeg',
   '    Linux:    sudo apt install ffmpeg   (or your distro equivalent)',
@@ -1989,7 +1989,7 @@ const x264Check: Check = {
         name: 'libx264',
         status: 'fail',
         detail: 'ffmpeg was built without libx264',
-        hint: '    autocast encodes H.264. Install a full ffmpeg build:\n' + FFMPEG_INSTALL,
+        hint: '    autodemo encodes H.264. Install a full ffmpeg build:\n' + FFMPEG_INSTALL,
       };
     }
     return { name: 'libx264', status: 'ok', detail: 'enabled' };
@@ -2024,7 +2024,7 @@ const cwdWritableCheck: Check = {
         name: 'cwd writable',
         status: 'fail',
         detail: `cannot write to ${process.cwd()}`,
-        hint: '    autocast writes intermediates to .autocast/ in the working directory.',
+        hint: '    autodemo writes intermediates to .autodemo/ in the working directory.',
       };
     }
   },
@@ -2083,7 +2083,7 @@ describe('formatCheckResults', () => {
   });
 });
 
-describe('autocast doctor', () => {
+describe('autodemo doctor', () => {
   it('runs and returns 0 or 1 without throwing', async () => {
     const c = captureIO();
     const code = await runCli(['doctor'], c.io);
@@ -2110,7 +2110,7 @@ const MARK: Record<CheckResult['status'], string> = { ok: 'OK  ', warn: 'WARN', 
 
 export function formatCheckResults(results: readonly CheckResult[]): string {
   const width = Math.max(...results.map((r) => r.name.length), 0);
-  const lines: string[] = ['autocast doctor', ''];
+  const lines: string[] = ['autodemo doctor', ''];
 
   for (const r of results) {
     lines.push(`  ${MARK[r.status]}  ${r.name.padEnd(width)}  ${r.detail}`);
@@ -2169,7 +2169,7 @@ Expected: ffmpeg, libx264 and librubberband all report OK on a machine with a fu
 
 ```bash
 git add src/doctor/ src/cli/doctor-command.ts src/cli/doctor-command.test.ts src/cli/run.ts
-git commit -m "feat: autocast doctor with per-platform install hints"
+git commit -m "feat: autodemo doctor with per-platform install hints"
 ```
 
 ---
@@ -2200,7 +2200,7 @@ function captureIO() {
   return { io, out: () => out.join('\n') };
 }
 
-describe('autocast schema', () => {
+describe('autodemo schema', () => {
   it('prints valid JSON', async () => {
     const c = captureIO();
     const code = await runCli(['schema'], c.io);
@@ -2214,7 +2214,7 @@ describe('autocast schema', () => {
     const schema = JSON.parse(c.out()) as Record<string, unknown>;
     const props = (schema.properties ?? {}) as Record<string, unknown>;
     expect(Object.keys(props)).toEqual(
-      expect.arrayContaining(['autocast', 'output', 'sessions', 'scenes']),
+      expect.arrayContaining(['autodemo', 'output', 'sessions', 'scenes']),
     );
   });
 });
@@ -2353,7 +2353,7 @@ Confirm the doctor output names real paths and versions, and that the broken fix
 
 ```bash
 git add src/cli/schema-command.ts src/cli/schema-command.test.ts src/cli/acceptance.test.ts src/cli/run.ts
-git commit -m "feat: autocast schema command and phase 0 acceptance tests"
+git commit -m "feat: autodemo schema command and phase 0 acceptance tests"
 ```
 
 ---
@@ -2363,10 +2363,10 @@ git commit -m "feat: autocast schema command and phase 0 acceptance tests"
 - `npx vitest run` — all green.
 - `npm run typecheck` — clean.
 - `npm run build` — produces `dist/`.
-- `autocast doctor` truthfully reports ffmpeg, libx264, librubberband and cwd writability, with copy-pasteable install commands for anything missing.
-- `autocast validate fixtures/mixed/demo.yaml` exits 0.
+- `autodemo doctor` truthfully reports ffmpeg, libx264, librubberband and cwd writability, with copy-pasteable install commands for anything missing.
+- `autodemo validate fixtures/mixed/demo.yaml` exits 0.
 - Each fixture under `fixtures/broken/` exits 1 with a message naming the file, line, column and reason.
 - `fixtures/warnings/no-assertions.yaml` exits 0 normally and 1 under `--strict`.
-- `autocast schema` emits JSON Schema generated from the Zod schema.
+- `autodemo schema` emits JSON Schema generated from the Zod schema.
 - Runtime dependencies are exactly `yaml` and `zod`.
 - No capture, encoding, browser or PTY code exists in the repo.

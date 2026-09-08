@@ -12,7 +12,7 @@ import { speechDurationSec } from '../render/speech.js';
 import { rmsAt } from '../voice/rms.js';
 import { SCENE_TAIL_SEC } from '../render/composition.js';
 
-const dir = mkdtempSync(join(tmpdir(), 'autocast-render-'));
+const dir = mkdtempSync(join(tmpdir(), 'autodemo-render-'));
 afterAll(() =>
   rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }),
 );

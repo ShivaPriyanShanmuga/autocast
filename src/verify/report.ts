@@ -9,7 +9,7 @@ export interface ReportSceneCore {
 }
 
 export interface ReportCore {
-  autocast: 1;
+  autodemo: 1;
   ok: boolean;
   scenes: ReportSceneCore[];
   findings: Finding[];
@@ -62,7 +62,7 @@ export interface BuildReportInput {
 export function buildReport(input: BuildReportInput): RenderReportFile {
   return {
     core: {
-      autocast: 1,
+      autodemo: 1,
       ok: input.ok,
       scenes: input.scenes.map((s) => ({
         id: s.id,

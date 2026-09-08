@@ -1,4 +1,4 @@
-autocast: 1
+autodemo: 1
 output:
   path: docs/demo.mp4
   canvas: [1280, 720]

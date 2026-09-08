@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { DemoScript } from './demo.js';
 
 const minimal = {
-  autocast: 1,
+  autodemo: 1,
   output: { path: 'docs/demo.mp4' },
   sessions: { api: { backend: 'terminal' } },
   scenes: [{ id: 'boot', use: 'api', steps: [{ type: 'ls' }] }],
@@ -21,7 +21,7 @@ describe('DemoScript', () => {
   });
 
   it('rejects a wrong version literal', () => {
-    const r = DemoScript.safeParse({ ...minimal, autocast: 2 });
+    const r = DemoScript.safeParse({ ...minimal, autodemo: 2 });
     expect(r.success).toBe(false);
   });
 
@@ -85,7 +85,7 @@ describe('DemoScript', () => {
 
 describe('caption fields', () => {
   const base = {
-    autocast: 1,
+    autodemo: 1,
     output: { path: 'a.mp4', canvas: [1280, 720] },
     sessions: { api: { backend: 'terminal' } },
     scenes: [{ id: 's', use: 'api', narrate: 'hello' }],
@@ -118,7 +118,7 @@ describe('caption fields', () => {
 
 describe('voice block', () => {
   const base = {
-    autocast: 1,
+    autodemo: 1,
     output: { path: 'a.mp4', canvas: [1280, 720] },
     sessions: { api: { backend: 'terminal' } },
     scenes: [{ id: 's', use: 'api', narrate: 'hello' }],
