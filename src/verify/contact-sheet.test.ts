@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { loadImage } from '@napi-rs/canvas';
 import { writeContactSheet } from './contact-sheet.js';
 
-const dir = mkdtempSync(join(tmpdir(), 'autocast-sheet-'));
+const dir = mkdtempSync(join(tmpdir(), 'autodemo-sheet-'));
 afterAll(() => rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }));
 
 const size = { width: 64, height: 36 };

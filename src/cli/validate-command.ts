@@ -8,7 +8,7 @@ export async function validateCommand(argv: string[], io: CliIO): Promise<number
   const file = argv.find((a) => !a.startsWith('--'));
 
   if (file === undefined) {
-    io.err('autocast validate: expects a file\n\nUsage: autocast validate [--strict] <file>');
+    io.err('autodemo validate: expects a file\n\nUsage: autodemo validate [--strict] <file>');
     return 2;
   }
 
@@ -17,7 +17,7 @@ export async function validateCommand(argv: string[], io: CliIO): Promise<number
     text = readFileSync(file, 'utf8');
   } catch (error) {
     io.err(
-      `autocast validate: cannot read ${file}: ${
+      `autodemo validate: cannot read ${file}: ${
         error instanceof Error ? error.message : String(error)
       }`,
     );

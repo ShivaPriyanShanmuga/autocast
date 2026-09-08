@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { buildReport, writeReport } from './report.js';
 
-const dir = mkdtempSync(join(tmpdir(), 'autocast-report-'));
+const dir = mkdtempSync(join(tmpdir(), 'autodemo-report-'));
 afterAll(() => rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }));
 
 const scenes = [

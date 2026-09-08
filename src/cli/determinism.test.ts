@@ -6,7 +6,7 @@ import { parseSource } from '../validate/parse.js';
 import { checkSchema } from '../validate/schema-check.js';
 import { renderDemo, formatRenderReport } from '../driver/render.js';
 
-const dir = mkdtempSync(join(tmpdir(), 'autocast-det-'));
+const dir = mkdtempSync(join(tmpdir(), 'autodemo-det-'));
 afterAll(() => rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }));
 
 function load(path: string) {

@@ -1,4 +1,4 @@
-autocast: 1
+autodemo: 1
 output:
   path: docs/terminal-demo.mp4
 
@@ -17,12 +17,12 @@ scenes:
     use: cli
     narrate: "First, a greeting."
     steps:
-      - type: "node fixtures/cli-app/cli.mjs greet autocast"
+      - type: "node fixtures/cli-app/cli.mjs greet autodemo"
       - key: Enter
       - wait_for:
           stdout: /ready/
     assert:
-      - stdout_contains: "hello autocast"
+      - stdout_contains: "hello autodemo"
 
   - id: build
     use: cli

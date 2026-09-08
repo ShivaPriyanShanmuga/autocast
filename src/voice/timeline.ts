@@ -99,7 +99,7 @@ function run(args: readonly string[]): Promise<void> {
       stderr += c.toString();
     });
     p.on('error', (e) =>
-      reject(new Error(`could not run ffmpeg: ${e.message}. Run "autocast doctor".`)),
+      reject(new Error(`could not run ffmpeg: ${e.message}. Run "autodemo doctor".`)),
     );
     p.on('close', (code) =>
       code === 0

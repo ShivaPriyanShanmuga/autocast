@@ -25,7 +25,7 @@ export interface Check {
 }
 
 const FFMPEG_INSTALL = [
-  '    autocast needs ffmpeg to encode video.',
+  '    autodemo needs ffmpeg to encode video.',
   '    Windows:  winget install Gyan.FFmpeg',
   '    macOS:    brew install ffmpeg',
   '    Linux:    sudo apt install ffmpeg   (or your distro equivalent)',
@@ -69,7 +69,7 @@ const x264Check = ffmpegLibCheck('libx264', (name) => ({
   name,
   status: 'fail',
   detail: 'ffmpeg was built without libx264',
-  hint: '    autocast encodes H.264 and this ffmpeg cannot. Install a full build:\n' +
+  hint: '    autodemo encodes H.264 and this ffmpeg cannot. Install a full build:\n' +
     FFMPEG_INSTALL,
 }));
 
@@ -93,7 +93,7 @@ const cwdWritableCheck: Check = {
         name: 'cwd writable',
         status: 'fail',
         detail: `cannot write to ${process.cwd()}`,
-        hint: '    autocast writes intermediates to .autocast/ in the working directory.',
+        hint: '    autodemo writes intermediates to .autodemo/ in the working directory.',
       };
     }
   },
@@ -149,7 +149,7 @@ const nodePtyCheck: Check = {
             .split('\n')
             .map((line) => `    ${line}`),
           '',
-          '    autocast drives a real PTY for terminal scenes.',
+          '    autodemo drives a real PTY for terminal scenes.',
           '    If the message above names a shell, set SHELL to one that exists.',
           '    node-pty ships prebuilt binaries for common platforms.',
           '    If yours is not covered, it must be built from source:',
@@ -181,7 +181,7 @@ const chromiumCheck: Check = {
           error instanceof Error ? error.message.split('\n')[0] : String(error)
         }`,
         hint: [
-          '    autocast drives a real Chromium for browser scenes.',
+          '    autodemo drives a real Chromium for browser scenes.',
           '    Install it with:',
           '      npx playwright install chromium',
         ].join('\n'),
@@ -209,7 +209,7 @@ const voiceCheck: Check = {
         status: 'skip',
         detail: 'not installed — voice narration unavailable',
         hint: [
-          '    Voice is opt-in: autocast does not install a speech engine by',
+          '    Voice is opt-in: autodemo does not install a speech engine by',
           '    default, because it pulls roughly 300MB of onnxruntime.',
           '',
           '      npm i -D kokoro-js',

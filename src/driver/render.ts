@@ -205,7 +205,7 @@ export async function renderDemo(
         const shots = await sampleFailingScene(capture, script, failing, canvasW, canvasH);
         if (shots.length > 0) {
           contactSheetPath = await writeContactSheet(
-            join('.autocast', 'failed', `${failing.id}-contact.png`),
+            join('.autodemo', 'failed', `${failing.id}-contact.png`),
             shots,
             { width: canvasW, height: canvasH },
           );
@@ -234,7 +234,7 @@ export async function renderDemo(
   const synthesized: Record<string, SynthesisResult> = {};
   if (voice.enabled && narrates) {
     const backend = voiceBackendFor(voice);
-    const cacheDir = join('.autocast', 'voice');
+    const cacheDir = join('.autodemo', 'voice');
     const sceneSecById = new Map(sceneSecs.map((s2) => [s2.id, s2.sec]));
 
     for (const [id, text] of Object.entries(narrationTextByScene)) {
@@ -564,7 +564,7 @@ export async function renderDemo(
     let audioPath: string | undefined;
     const clips = planClips(plan, synthesized);
     if (clips.length > 0) {
-      audioPath = join('.autocast', 'voice', 'track.wav');
+      audioPath = join('.autodemo', 'voice', 'track.wav');
       // The bed is deliberately LONGER than the picture.
       //
       // `-shortest` cuts every stream to the shortest one, so the audio
@@ -706,7 +706,7 @@ export function vttPathFor(outputPath: string): string {
 }
 
 export function formatRenderReport(report: RenderReport): string {
-  const lines = [`autocast render — ${report.outputPath}`, ''];
+  const lines = [`autodemo render — ${report.outputPath}`, ''];
 
   for (const scene of report.scenes) {
     lines.push(

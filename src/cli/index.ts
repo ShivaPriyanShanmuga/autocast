@@ -9,7 +9,7 @@ const io: CliIO = {
 runCli(process.argv.slice(2), io).then(
   (code) => finish(code),
   (error: unknown) => {
-    io.err(`autocast: ${error instanceof Error ? error.message : String(error)}`);
+    io.err(`autodemo: ${error instanceof Error ? error.message : String(error)}`);
     finish(2);
   },
 );

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// A dependency-free HTTP server used by autocast's browser tests.
+// A dependency-free HTTP server used by autodemo's browser tests.
 // Never add npm dependencies: tests must run with no install and no network.
 
 import { createServer } from 'node:http';

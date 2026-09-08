@@ -1,4 +1,4 @@
-# autocast — agent-driven demo video recorder
+# autodemo — agent-driven demo video recorder
 
 **Status:** Design approved, pending implementation plan
 **Date:** 2026-09-04
@@ -257,7 +257,7 @@ pidfile-based orphan detection on the next run.
 ## 5. Script schema
 
 ```yaml
-autocast: 1
+autodemo: 1
 output:  { path: docs/demo.mp4, canvas: [1280, 720], fps: 30 }
 defaults: { typing_speed: 45ms, settle: 400ms }
 
@@ -329,7 +329,7 @@ scenes:
 - **`narrate` exists from day one even while silent.** Phase 1 uses it for
   captions and duration estimation; TTS later uses the same field with no
   schema change.
-- **`autocast: 1`** is a schema version supporting migration.
+- **`autodemo: 1`** is a schema version supporting migration.
 
 ## 6. Terminal capture — decision and rationale
 
@@ -498,7 +498,7 @@ no-frames-in-context rule of section 3.
 same voice on every machine — so a committed script sounds identical wherever
 it re-renders. It is NOT installed by default: a base install must not pull
 ~300MB of onnxruntime for a feature most demos will not use. Voice is opt-in,
-`autocast doctor` reports it as `skip` rather than `fail` when absent, and a
+`autodemo doctor` reports it as `skip` rather than `fail` when absent, and a
 script that asks for it and cannot have it fails loudly at render.
 
 The third criterion the phase list named — word-level timing marks — was
@@ -514,7 +514,7 @@ for sub-scene caption timing, and 7.1.2 settled on one caption per scene.
 - **The default model cache is unloadable on Windows.** transformers.js caches
   under `node_modules/@huggingface/transformers/.cache`; in a normal project
   that path measured 265 characters, past the 260-character `MAX_PATH`, and
-  onnxruntime then reported that a valid 92MB file did not exist. autocast
+  onnxruntime then reported that a valid 92MB file did not exist. autodemo
   sets a short user-level `cacheDir`.
 - 150 wpm predicted real speech within ±11%, mean ratio 1.01 — so 7.1.2's
   estimate is a sound fallback when voice is off.
@@ -612,7 +612,7 @@ right from phase 2.
 
 ## 8. Verification and error handling
 
-**Layer 1 — static (`autocast validate`), zero execution.** Schema check;
+**Layer 1 — static (`autodemo validate`), zero execution.** Schema check;
 referential integrity (every `use:` names a declared session, every
 `inset.session` exists); lint for scenes without assertions, `sleep` usage,
 unused sessions, and narration exceeding an absolute word-count ceiling (true
@@ -640,7 +640,7 @@ scene-duration anomalies, and A/V divergence beyond tolerance.
 **Report** — the agent's entire view of the world:
 
 ```
-autocast render - docs/demo.mp4
+autodemo render - docs/demo.mp4
   OK   boot    4.2s   2 assertions   term        (idle 3.1s -> 0.8s)
   OK   order   7.8s   2 assertions   web         (focus: [data-test=order-form])
   FAIL logs    2.1s   1 assertion    term+inset
@@ -651,7 +651,7 @@ autocast render - docs/demo.mp4
       heuristic: frame-delta flatline 1.9s of 2.1s
 
   FAILED - 1 of 3 scenes.
-  Contact sheet: .autocast/failed/logs-contact.png   (not read automatically)
+  Contact sheet: .autodemo/failed/logs-contact.png   (not read automatically)
 ```
 
 **Preflight, before pass 1 begins** — ffmpeg present with `libx264` (warn if
@@ -677,7 +677,7 @@ away.
 What the agent actually needs is knowledge — schema, assertion vocabulary,
 failure playbook. That is documentation.
 
-**Decision:** `npx autocast` is the product. A thin Claude Code skill packages
+**Decision:** `npx autodemo` is the product. A thin Claude Code skill packages
 the knowledge; a plain `AGENTS.md` snippet gives Cursor/Codex/Copilot users the
 same thing without a plugin. JSON Schema is published for editor autocomplete.
 MCP remains available later without a rewrite, since it would shell out to the
@@ -686,11 +686,11 @@ same CLI.
 Loop:
 
 ```
-autocast init        -> scaffold + schema reference
+autodemo init        -> scaffold + schema reference
   (agent writes demo.yaml)
-autocast validate    -> static errors, no execution, ~free
+autodemo validate    -> static errors, no execution, ~free
   (agent fixes)
-autocast render      -> text report (~300 tokens)
+autodemo render      -> text report (~300 tokens)
 ```
 
 Roughly 2k tokens for the schema once, ~1k to author, ~300 per iteration —
@@ -753,8 +753,8 @@ Each phase stops for approval. Exit criteria are hand-testable.
 
 **Phase 0 — Foundations and validate.** Repo, TS build, CLI shell, `doctor`,
 `schema`, `validate`. No capture.
-*Exit:* `npx autocast doctor` truthfully reports present/missing deps with
-copy-pasteable install commands. `autocast validate fixtures/mixed/demo.yaml`
+*Exit:* `npx autodemo doctor` truthfully reports present/missing deps with
+copy-pasteable install commands. `autodemo validate fixtures/mixed/demo.yaml`
 passes; a deliberately broken copy fails naming the line and reason.
 
 **Phase 1 — Terminal backend, silent.** node-pty + @xterm/headless + glyph
@@ -802,14 +802,14 @@ same interface.
 over-wordy narration trips `sync: strict` instead of silently looking wrong.
 
 **Phase 7 — Agent surface.** Claude Code skill, `AGENTS.md`, README, LICENCE,
-`autocast init`, and a failure playbook that turns each failure into one
+`autodemo init`, and a failure playbook that turns each failure into one
 concrete next action — an agent that has to guess pays a whole render per
 guess, which is the expensive step in the loop.
 *Exit:* in a different repo, an agent produces an mp4 without the schema being
 explained to it by hand. Executed as a test rather than asserted: a temp
 directory runs init, validate and render and gets h264 out.
 
-**Publishing is deliberately NOT part of this phase.** `autocast` is taken on
+**Publishing is deliberately NOT part of this phase.** `autodemo` is taken on
 npm by an unrelated package, so a name has to be chosen before anything can
 ship. Everything else is done and verified locally; `npm publish` stays a
 single step behind that decision.

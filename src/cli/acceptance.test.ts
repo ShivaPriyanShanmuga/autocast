@@ -72,7 +72,7 @@ describe('Phase 1 exit criteria', () => {
     const { join } = await import('node:path');
     const { probeVideo } = await import('../render/encoder.js');
 
-    const dir = mkdtempSync(join(tmpdir(), 'autocast-accept-'));
+    const dir = mkdtempSync(join(tmpdir(), 'autodemo-accept-'));
     try {
       const out = join(dir, 'phase1.mp4');
       const c = captureIO();
@@ -131,7 +131,7 @@ describe('Phase 2 exit criteria', () => {
     const { join } = await import('node:path');
     const { probeVideo } = await import('../render/encoder.js');
 
-    const dir = mkdtempSync(join(tmpdir(), 'autocast-p2-'));
+    const dir = mkdtempSync(join(tmpdir(), 'autodemo-p2-'));
     try {
       const yaml = readFileSync('fixtures/browser/demo.yaml', 'utf8').replace(
         /127\.0\.0\.1:\d+/,
@@ -163,7 +163,7 @@ describe('Phase 3 exit criteria', () => {
     const { join } = await import('node:path');
     const { probeVideo } = await import('../render/encoder.js');
 
-    const dir = mkdtempSync(join(tmpdir(), 'autocast-p3-'));
+    const dir = mkdtempSync(join(tmpdir(), 'autodemo-p3-'));
     try {
       // Own port: other files render the flagship in parallel, and it
       // starts a server on a fixed port from inside the demo.

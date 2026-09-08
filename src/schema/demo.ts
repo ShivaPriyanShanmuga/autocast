@@ -170,7 +170,7 @@ const Style = z
 
 export const DemoScript = z
   .object({
-    autocast: z.literal(1),
+    autodemo: z.literal(1),
     output: z
       .object({
         path: z.string().min(1),

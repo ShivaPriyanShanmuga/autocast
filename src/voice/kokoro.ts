@@ -23,11 +23,11 @@ const DTYPE = 'q8';
  * exist. Verified by spike, 2026-09-06 (spec section 7.1.3).
  */
 export function modelCacheDir(): string {
-  return process.env.AUTOCAST_MODEL_DIR ?? join(homedir(), '.autocast', 'models');
+  return process.env.AUTODEMO_MODEL_DIR ?? join(homedir(), '.autodemo', 'models');
 }
 
 const INSTALL_HINT =
-  'Voice needs the Kokoro engine, which autocast does not install by default ' +
+  'Voice needs the Kokoro engine, which autodemo does not install by default ' +
   'because it pulls roughly 300MB of onnxruntime.\n' +
   '  npm i -D kokoro-js\n' +
   'The voice model (~92MB) downloads on first use into ' +

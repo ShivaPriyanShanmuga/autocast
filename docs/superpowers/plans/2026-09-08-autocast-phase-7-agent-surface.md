@@ -1,31 +1,31 @@
-# autocast Phase 7 — Agent surface and release — Implementation Plan
+# autodemo Phase 7 — Agent surface and release — Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** An agent in a repo that has never seen autocast writes a demo script and gets an mp4, without a human explaining the schema.
+**Goal:** An agent in a repo that has never seen autodemo writes a demo script and gets an mp4, without a human explaining the schema.
 
-**Architecture:** No new runtime machinery. §9 already settled that the product is `npx autocast` plus knowledge, not an MCP server: the agent's whole job is write-a-file, run-a-command, read-a-report, which every coding agent can already do. This phase adds the missing knowledge layer and the one missing command.
+**Architecture:** No new runtime machinery. §9 already settled that the product is `npx autodemo` plus knowledge, not an MCP server: the agent's whole job is write-a-file, run-a-command, read-a-report, which every coding agent can already do. This phase adds the missing knowledge layer and the one missing command.
 
 **Tech Stack:** No new dependencies.
 
-**Spec:** `docs/superpowers/specs/2026-09-04-autocast-design.md` — especially §9 and §10.
+**Spec:** `docs/superpowers/specs/2026-09-04-autodemo-design.md` — especially §9 and §10.
 
 ## Decisions taken into this plan
 
-- **Not publishing to npm in this phase.** `autocast` is taken (v0.0.4 by someone else). Everything ships and is verified locally; publishing stays a deliberate step behind a name the author picks.
-- **The skill must NOT embed the schema.** §9 rejected MCP partly for adding "a duplicated schema to keep in sync"; copying the schema into a skill file would be that same mistake in a cheaper wrapper. The skill tells the agent to run `autocast schema`.
+- **Not publishing to npm in this phase.** `autodemo` is taken (v0.0.4 by someone else). Everything ships and is verified locally; publishing stays a deliberate step behind a name the author picks.
+- **The skill must NOT embed the schema.** §9 rejected MCP partly for adding "a duplicated schema to keep in sync"; copying the schema into a skill file would be that same mistake in a cheaper wrapper. The skill tells the agent to run `autodemo schema`.
 
 ## Global Constraints
 
 - **Node 20+**, ESM. All three platforms. **No new runtime dependencies.**
 - **`init` never overwrites.** An agent that runs it twice, or in a repo that already has a demo, must not lose work.
-- **Knowledge lives in one place.** Schema from `autocast schema`; the skill and `AGENTS.md` point at it rather than restating it.
+- **Knowledge lives in one place.** Schema from `autodemo schema`; the skill and `AGENTS.md` point at it rather than restating it.
 - **The token budget is enforced, not claimed** (§9). The existing regression test must keep passing.
 - **TDD is mandatory.** Failing test first, watch it fail, then implement.
 
 ---
 
-### Task 1: `autocast init`
+### Task 1: `autodemo init`
 
 **Files:**
 - Create: `src/cli/init-command.ts`, `src/cli/init-command.test.ts`
@@ -35,7 +35,7 @@
 - `function initCommand(argv: string[], io: CliIO): Promise<number>`
 - `function detectProject(dir: string): 'web' | 'cli'`
 
-Writes `demo.yaml` scaffolded for what it found, and `.autocast/schema.json`
+Writes `demo.yaml` scaffolded for what it found, and `.autodemo/schema.json`
 so editors autocomplete. The scaffold carries a
 `# yaml-language-server: $schema=` header pointing at it.
 
@@ -45,11 +45,11 @@ the scaffold is a starting point the agent edits — but a silent wrong
 guess with no note is not, so `init` says what it detected and why.
 
 - [x] **Step 1: Failing tests** — writes `demo.yaml` and
-  `.autocast/schema.json`; the scaffold passes `autocast validate`
+  `.autodemo/schema.json`; the scaffold passes `autodemo validate`
   unedited; refuses to overwrite an existing `demo.yaml` and exits
   non-zero saying so; `--force` overwrites; detects web from a `dev`
   script and cli otherwise; reports which it chose; the schema written
-  matches `autocast schema` byte for byte.
+  matches `autodemo schema` byte for byte.
 - [x] **Step 2: Implement**
 - [x] **Step 3: Verify** — `npx vitest run src/cli/init-command.test.ts`
 
@@ -92,7 +92,7 @@ sheet.** An agent that starts looking at frames defeats the entire
 architecture (§3, constraint 2), and it is the single most likely thing
 for a well-meaning agent to do unprompted.
 
-- [x] **Step 1: Write it**, pointing at `autocast schema` rather than
+- [x] **Step 1: Write it**, pointing at `autodemo schema` rather than
   restating the schema.
 - [x] **Step 2: Verify** — a test asserts `AGENTS.md` exists, names all
   four commands, and does not contain an inlined copy of the schema.
@@ -102,10 +102,10 @@ for a well-meaning agent to do unprompted.
 ### Task 4: The Claude Code skill
 
 **Files:**
-- Create: `skills/autocast/SKILL.md`
+- Create: `skills/autodemo/SKILL.md`
 
 Thin by design: frontmatter, when to use it, the loop, and a pointer to
-`autocast schema`. Everything the skill would otherwise duplicate is a
+`autodemo schema`. Everything the skill would otherwise duplicate is a
 command away.
 
 - [x] **Step 1: Write it** with valid frontmatter (`name`, `description`).
@@ -138,7 +138,7 @@ MIT, matching the dependency licences already in use.
 - Create: `src/cli/agent-surface.test.ts`
 
 The phase's exit criterion, executed rather than asserted by hand: in a
-temporary directory that has never seen autocast, run `init`, then
+temporary directory that has never seen autodemo, run `init`, then
 `validate`, then `render`, and get a playable mp4.
 
 - [x] **Step 1: Failing test** — scaffold a throwaway CLI project in a
@@ -159,9 +159,9 @@ temporary directory that has never seen autocast, run `init`, then
 
 ## Exit criteria (hand-testable)
 
-1. In a fresh directory, `npx autocast init && npx autocast render demo.yaml`
+1. In a fresh directory, `npx autodemo init && npx autodemo render demo.yaml`
    produces a playable mp4 with no hand-holding.
-2. `autocast init` refuses to clobber an existing `demo.yaml`.
+2. `autodemo init` refuses to clobber an existing `demo.yaml`.
 3. A deliberately broken script produces a report whose suggested next step
    is the one a human would give.
 4. `AGENTS.md` and the skill both fit in a couple of thousand tokens and

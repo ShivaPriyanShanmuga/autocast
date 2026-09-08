@@ -31,7 +31,7 @@ const open: BrowserSession[] = [];
 const dirs: string[] = [];
 
 async function ctx(): Promise<BrowserStepContext> {
-  const dir = mkdtempSync(join(tmpdir(), 'autocast-bsteps-'));
+  const dir = mkdtempSync(join(tmpdir(), 'autodemo-bsteps-'));
   dirs.push(dir);
   const session = await openBrowserSession({
     viewport: [640, 400],
