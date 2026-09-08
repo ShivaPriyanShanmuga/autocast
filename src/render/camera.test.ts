@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { browserRectToPixels, cameraRect, cellRectToPixels } from './camera.js';
+import {
+  browserRectToPixels,
+  cameraRect,
+  cellRectToPixels,
+  zoomedCamera,
+  type Rect,
+} from './camera.js';
 import type { ScreenState } from './screen.js';
 
 const surface = { width: 2560, height: 1440 };
@@ -119,5 +125,103 @@ describe('browserRectToPixels', () => {
     );
     expect(big.x).toBeCloseTo(small.x * 2, 5);
     expect(big.width).toBeCloseTo(small.width * 2, 5);
+  });
+});
+
+describe('zoomedCamera', () => {
+  const surface = { width: 2176, height: 1224 };
+  // Off-centre and low, like the flagship's submit button.
+  const focus = { x: 1500, y: 900, width: 200, height: 60 };
+  const TARGET = 1.7;
+
+  it('is the whole surface at rest', () => {
+    expect(zoomedCamera(surface, focus, 1, TARGET)).toEqual({
+      x: 0,
+      y: 0,
+      width: 2176,
+      height: 1224,
+    });
+  });
+
+  it('lands exactly on the framing the target zoom asks for', () => {
+    const got = zoomedCamera(surface, focus, TARGET, TARGET);
+    const want = cameraRect(surface, focus, TARGET);
+    expect(got.x).toBeCloseTo(want.x, 6);
+    expect(got.y).toBeCloseTo(want.y, 6);
+    expect(got.width).toBeCloseTo(want.width, 6);
+    expect(got.height).toBeCloseTo(want.height, 6);
+  });
+
+  /** How far each edge has travelled toward its final place, 0..1. */
+  function edgeProgress(cam: Rect, end: Rect): Record<string, number | 'fixed'> {
+    const measure = (now: number, from: number, to: number): number | 'fixed' =>
+      Math.abs(to - from) < 1e-9 ? 'fixed' : (now - from) / (to - from);
+    return {
+      left: measure(cam.x, 0, end.x),
+      top: measure(cam.y, 0, end.y),
+      right: measure(cam.x + cam.width, surface.width, end.x + end.width),
+      bottom: measure(cam.y + cam.height, surface.height, end.y + end.height),
+    };
+  }
+
+  it('moves every edge by the same FRACTION of its travel', () => {
+    // The bug this exists for. Clamping at each intermediate zoom made
+    // the camera slide into a corner, so the background vanished off one
+    // edge, then another, then a third, while the fourth grew. Measured
+    // on the shipped video: right and bottom hit zero together, top
+    // collapsed 0.3s later, left went 56px -> 95px.
+    //
+    // A focus far enough inside that all four edges actually travel.
+    const inner = { x: 1150, y: 670, width: 100, height: 60 };
+    const end = cameraRect(surface, inner, TARGET);
+    for (const p of [0.1, 0.25, 0.5, 0.75, 0.9]) {
+      const cam = zoomedCamera(surface, inner, 1 + (TARGET - 1) * p, TARGET);
+      for (const [edge, fraction] of Object.entries(edgeProgress(cam, end))) {
+        expect(fraction, `${edge} at p=${p}`).not.toBe('fixed');
+        expect(fraction as number, `${edge} at p=${p}`).toBeCloseTo(p, 5);
+      }
+    }
+  });
+
+  it('holds an edge still when the final framing pins it to the surface', () => {
+    // The flagship's case: the focus is far enough right that the camera
+    // ends flush against the surface edge. That edge has nowhere to go,
+    // and must not twitch on the way there.
+    const end = cameraRect(surface, focus, TARGET);
+    expect(end.x + end.width).toBeCloseTo(surface.width, 6);
+    for (const p of [0.2, 0.6, 1]) {
+      const cam = zoomedCamera(surface, focus, 1 + (TARGET - 1) * p, TARGET);
+      expect(cam.x + cam.width).toBeCloseTo(surface.width, 6);
+      expect(edgeProgress(cam, end).left as number).toBeCloseTo(p, 5);
+    }
+  });
+
+  it('moves every edge monotonically, with no stall and no jump', () => {
+    const steps = 60;
+    let previous = zoomedCamera(surface, focus, 1, TARGET);
+    const deltas: number[] = [];
+    for (let i = 1; i <= steps; i++) {
+      const cam = zoomedCamera(surface, focus, 1 + ((TARGET - 1) * i) / steps, TARGET);
+      expect(cam.x).toBeGreaterThanOrEqual(previous.x - 1e-9);
+      expect(cam.y).toBeGreaterThanOrEqual(previous.y - 1e-9);
+      expect(cam.width).toBeLessThanOrEqual(previous.width + 1e-9);
+      deltas.push(cam.x - previous.x);
+      previous = cam;
+    }
+    // Uniform motion: no frame moves much more than any other.
+    expect(Math.max(...deltas)).toBeLessThan(Math.min(...deltas) * 1.05 + 1e-6);
+  });
+
+  it('stays on the surface when the spring overshoots the target', () => {
+    const cam = zoomedCamera(surface, focus, TARGET * 1.05, TARGET);
+    expect(cam.x).toBeGreaterThanOrEqual(0);
+    expect(cam.y).toBeGreaterThanOrEqual(0);
+    expect(cam.width).toBeGreaterThan(0);
+    expect(cam.x + cam.width).toBeLessThanOrEqual(surface.width + 1e-6);
+    expect(cam.y + cam.height).toBeLessThanOrEqual(surface.height + 1e-6);
+  });
+
+  it('is the whole surface when nothing is focused', () => {
+    expect(zoomedCamera(surface, null, 1.4, TARGET).width).toBe(surface.width);
   });
 });

@@ -32,8 +32,8 @@ import { planFrame } from '../render/frame-plan.js';
 import { findInScreen } from '../render/find-in-screen.js';
 import {
   browserRectToPixels,
-  cameraRect,
   cellRectToPixels,
+  zoomedCamera,
   type Rect,
 } from '../render/camera.js';
 import { LayoutCompositor } from '../render/layout.js';
@@ -538,7 +538,10 @@ export async function renderDemo(
             }
           : null;
 
-        outCompositor.drawFullscreen(pres.surface, cameraRect(size, mapped, frame.zoom));
+        outCompositor.drawFullscreen(
+          pres.surface,
+          zoomedCamera(size, mapped, frame.zoom, zoomTarget),
+        );
 
         // After the camera, so the caption does not scale and crop with a
         // zoom. Before the blend, so it belongs to the snapshot and
