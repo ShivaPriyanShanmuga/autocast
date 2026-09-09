@@ -4,7 +4,12 @@ Agent-driven demo video recorder. A coding agent writes a YAML script,
 runs one command, and gets a **real recorded mp4** of a terminal and a
 browser — committed alongside the code, re-renderable in CI.
 
-https://github.com/ShivaPriyanShanmuga/autocast/raw/main/docs/flagship-demo-voiced.mp4
+https://github.com/ShivaPriyanShanmuga/autocast/raw/main/docs/shipboard-demo.mp4
+
+*Recorded by castscript from [`demos/shipboard/demo.yaml`](demos/shipboard/demo.yaml) —
+a terminal starting a server, a browser deploying through it, and the
+terminal's own log of that deploy, as one continuous take. Re-record it
+with `castscript render demos/shipboard/demo.yaml`.*
 
 ## What makes it different
 
@@ -16,8 +21,8 @@ writes a script, reads a ~300-token text report, and never sees a pixel.
 
 **Web and non-web are equal citizens.** One capture abstraction, two
 backends. A terminal scene and a browser scene compose into one
-continuous video with no resolution pop at the cut — the flagship demo
-shows a terminal logging the request the browser just made.
+continuous video with no resolution pop at the cut — the demo above
+shows a terminal logging the deploy the browser just triggered.
 
 **Re-rendering costs zero model calls.** The committed script is the
 artifact. CI can re-record the video from it; nothing needs an LLM.
@@ -135,6 +140,21 @@ error with `voice: { sync: strict }`.
 
 `AGENTS.md` is written for coding agents and is the thing to point one
 at. A Claude Code skill lives in `skills/castscript/`.
+
+## The demo
+
+[`demos/shipboard`](demos/shipboard) is a small deploy dashboard — a real
+app, not a fixture — kept in this repo so the demo above can be
+re-recorded from source at any time:
+
+```bash
+castscript validate demos/shipboard/demo.yaml   # free, no capture
+castscript render   demos/shipboard/demo.yaml
+```
+
+Nothing needs starting first. The demo's own first scene boots the
+server, which is the point: one script drives the terminal and the
+browser together.
 
 ## Status
 

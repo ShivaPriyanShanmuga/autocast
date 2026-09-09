@@ -4,6 +4,7 @@ import { formatDiagnostics, hasErrors } from '../validate/diagnostic.js';
 import { parseSource } from '../validate/parse.js';
 import { checkSchema } from '../validate/schema-check.js';
 import { lint } from '../validate/lint.js';
+import { environmentHint } from './playbook.js';
 import type { CliIO } from './run.js';
 
 export async function renderCommand(argv: string[], io: CliIO): Promise<number> {
@@ -46,7 +47,11 @@ export async function renderCommand(argv: string[], io: CliIO): Promise<number> 
     io.out(formatRenderReport(report));
     return report.ok ? 0 : 1;
   } catch (error) {
-    io.err(`castscript render: ${error instanceof Error ? error.message : String(error)}`);
+    const message = error instanceof Error ? error.message : String(error);
+    io.err(`castscript render: ${message}`);
+    const hint = environmentHint(message);
+    if (hint !== null) io.err(`
+${hint}`);
     return 2;
   }
 }

@@ -61,3 +61,45 @@ export function nextStepFor(report: RenderReport): string | null {
 
   return `next: assertion "${failed.name}" failed in ${where}. See ${report.reportPath}.`;
 }
+
+/**
+ * Environment failures that `castscript doctor` already diagnoses.
+ *
+ * A cold install fails inside Playwright, ffmpeg or node-pty, and those
+ * libraries report in their own words — Playwright prints an ASCII box
+ * about downloading browsers. None of them know that castscript has a
+ * command which names the exact problem and the exact fix, so the render
+ * has to say so itself.
+ */
+export function environmentHint(message: string): string | null {
+  const m = message.toLowerCase();
+
+  const missingBrowser =
+    m.includes('playwright install') ||
+    (m.includes('browsertype.launch') && m.includes("executable doesn't exist"));
+  if (missingBrowser) {
+    return (
+      'The browser binary is missing. Install it, then render again:\n' +
+      '  npx playwright install chromium\n' +
+      '  castscript doctor          (confirms every dependency at once)'
+    );
+  }
+
+  if (m.includes('could not run ffmpeg') || m.includes('spawn ffmpeg')) {
+    return (
+      'ffmpeg is not on PATH, so there is nothing to encode with.\n' +
+      '  castscript doctor          (prints the install command for your OS)'
+    );
+  }
+
+  if (m.includes('could not start a terminal') || m.includes('posix_spawnp')) {
+    return (
+      'A terminal session could not be started.\n' +
+      '  castscript doctor          (reports the shell it tried and why it failed)'
+    );
+  }
+
+  // Anything else is the script's problem, not the machine's. Sending an
+  // author to `doctor` for a selector that does not match is a wrong turn.
+  return null;
+}

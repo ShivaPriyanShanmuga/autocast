@@ -93,6 +93,14 @@ export function detectFlatline(scene: string, frames: readonly Buffer[]): Findin
  * that matters, since aborting on the first failure often leaves only
  * two scenes to compare.
  */
+/**
+ * No scene shorter than this is ever called a hang, whatever the ratio.
+ *
+ * A hung scene is one waiting on something that will never happen, so it
+ * runs to a timeout. Seconds are just work.
+ */
+export const MIN_ANOMALY_SEC = 10;
+
 export function detectDurationAnomaly(
   durations: ReadonlyArray<{ id: string; sec: number }>,
 ): Finding[] {
@@ -111,7 +119,12 @@ export function detectDurationAnomaly(
     const others = durations.filter((o) => o.id !== d.id).map((o) => o.sec);
     const median = medianOf(others);
     if (median <= 0) continue;
-    if (d.sec > median * 5) {
+    // BOTH conditions, not either. A hang is slow in absolute terms;
+    // being slow relative to peers is not enough when the peers did no
+    // work. A real cold-start demo had three assertion-only scenes
+    // measuring 0s, which dragged the median to 0.4s and flagged the two
+    // scenes that were doing their job.
+    if (d.sec >= MIN_ANOMALY_SEC && d.sec > median * 5) {
       out.push({
         code: 'H004',
         scene: d.id,

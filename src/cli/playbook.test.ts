@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { nextStepFor } from './playbook.js';
+import { nextStepFor, environmentHint } from './playbook.js';
 import type { RenderReport } from '../driver/render.js';
 
 const report = (over: Partial<RenderReport> = {}): RenderReport => ({
@@ -73,5 +73,39 @@ describe('nextStepFor', () => {
       const step = nextStepFor(failing(name, 'detail here')) ?? '';
       expect(step.length).toBeLessThan(400);
     }
+  });
+});
+
+describe('environmentHint', () => {
+  it('points a missing browser at doctor', () => {
+    // What a cold install actually produces: Playwright's own ASCII box,
+    // which says nothing about castscript having a command that
+    // diagnoses exactly this.
+    const hint = environmentHint(
+      "browserType.launch: Executable doesn't exist at C:\...\chrome-headless-shell.exe\n" +
+        'Please run the following command to download new browsers:\n' +
+        '    npx playwright install',
+    );
+    expect(hint).toMatch(/castscript doctor/);
+    expect(hint).toMatch(/playwright install/);
+  });
+
+  it('points a missing ffmpeg at doctor', () => {
+    expect(environmentHint('could not run ffmpeg: spawn ffmpeg ENOENT')).toMatch(
+      /castscript doctor/,
+    );
+  });
+
+  it('points a terminal that will not start at doctor', () => {
+    expect(environmentHint('could not start a terminal: posix_spawnp failed.')).toMatch(
+      /castscript doctor/,
+    );
+  });
+
+  it('says nothing about an ordinary script error', () => {
+    // A selector that does not match is the author's problem, not the
+    // environment's; sending them to doctor would be a wrong turn.
+    expect(environmentHint('locator.click: Timeout 5000ms exceeded')).toBeNull();
+    expect(environmentHint('scene "boot" uses session "api", which is not declared')).toBeNull();
   });
 });

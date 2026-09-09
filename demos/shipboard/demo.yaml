@@ -1,0 +1,87 @@
+# The product demo: a small deploy dashboard, recorded by castscript.
+#
+#   castscript validate demos/shipboard/demo.yaml
+#   castscript render   demos/shipboard/demo.yaml
+#
+# Run from the repo root. Nothing needs starting first — the boot
+# scene starts the server itself, which is the point.
+castscript: 1
+
+output:
+  path: docs/shipboard-demo.mp4
+  canvas: [1280, 720]
+  fps: 30
+
+defaults:
+  typing_speed: 55ms
+  settle: 700ms
+
+style:
+  background: { gradient: ["#0b0d14", "#1a2030"], padding: 56 }
+  window: { radius: 14, shadow: true }
+  cursor: { size: 1.4 }
+  zoom: { auto: true, on: click, scale: 1.7, ease: spring }
+  motion_blur: { cursor: true }
+
+sessions:
+  api:
+    backend: terminal
+    cwd: ./demos/shipboard
+    cols: 100
+    rows: 24
+  web:
+    backend: browser
+    viewport: [1280, 720]
+
+scenes:
+  - id: boot
+    use: api
+    narrate: "First we start the shipboard server."
+    steps:
+      - type: "node server.mjs 5180"
+      - key: Enter
+      - wait_for:
+          stdout: /listening on :5180/
+    assert:
+      - process_alive: true
+      - stdout_contains: "listening on :5180"
+
+  - id: open
+    use: web
+    narrate: "The deploy pipeline is idle, five stages waiting."
+    steps:
+      - goto: http://127.0.0.1:5180/
+      - wait_for:
+          selector: "[data-test=deploy]"
+    assert:
+      - visible: "[data-test=deploy]"
+      - no_console_errors: true
+
+  - id: deploy
+    use: web
+    narrate: "One click ships it, and the stages go green in turn."
+    focus: "[data-test=result]"
+    steps:
+      - click: "[data-test=deploy]"
+      - wait_for:
+          selector: "[data-test=result].show"
+    assert:
+      - visible: "[data-test=result]"
+      - text_matches: /Deployed/
+      - no_failed_requests: true
+
+  - id: logged
+    use: api
+    layout:
+      primary: web
+      inset: { session: api, corner: bottom-right, scale: 0.4 }
+    narrate: "The server logged every stage as it happened."
+    assert:
+      - stdout_matches: /POST \/api\/deploy 202/
+
+  - id: proof
+    use: api
+    narrate: "And there it is, live in about two seconds."
+    focus: /DEPLOY d-\w+ live in/
+    assert:
+      - stdout_matches: /live in \d/
