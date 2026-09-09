@@ -71,7 +71,7 @@ export async function encodeFrames(
     ff.on('error', (e) =>
       reject(
         new Error(
-          `could not run ffmpeg: ${e.message}. Run "autodemo doctor" for install instructions.`,
+          `could not run ffmpeg: ${e.message}. Run "castscript doctor" for install instructions.`,
         ),
       ),
     );

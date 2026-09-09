@@ -1,4 +1,4 @@
-# autodemo Phase 1b — Terminal rendering and encoding — Implementation Plan
+# castscript Phase 1b — Terminal rendering and encoding — Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -8,7 +8,7 @@
 
 **Tech Stack:** `@napi-rs/canvas` 1.0.8 (glyph rasterisation), `@fontsource/jetbrains-mono` (the bundled font), ffmpeg (external). Existing: `@xterm/headless`, TypeScript 5.9, vitest 3.
 
-**Spec:** `docs/superpowers/specs/2026-09-04-autodemo-design.md` — especially §4.2, §4.4, §6 and §6.1.
+**Spec:** `docs/superpowers/specs/2026-09-04-castscript-design.md` — especially §4.2, §4.4, §6 and §6.1.
 
 ## Global Constraints
 
@@ -35,7 +35,7 @@
 **Interfaces:**
 - Consumes: nothing
 - Produces:
-  - `const FONT_FAMILY = 'AutodemoMono'`
+  - `const FONT_FAMILY = 'CastscriptMono'`
   - `function ensureFontRegistered(): void` — idempotent
   - `interface CellMetrics { cellWidth: number; cellHeight: number; baselineOffset: number; fontSpec: string }`
   - `function measureCell(fontSizePx: number, lineHeightRatio?: number): CellMetrics`
@@ -110,7 +110,7 @@ const require = createRequire(import.meta.url);
  * resolves to a PROPORTIONAL face on Windows (M=10.00 but i=3.56), which
  * would shear every column out of alignment.
  */
-export const FONT_FAMILY = 'AutodemoMono';
+export const FONT_FAMILY = 'CastscriptMono';
 
 let registered = false;
 
@@ -1063,7 +1063,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { encodeFrames, probeVideo } from './encoder.js';
 
-const dir = mkdtempSync(join(tmpdir(), 'autodemo-enc-'));
+const dir = mkdtempSync(join(tmpdir(), 'castscript-enc-'));
 afterAll(() => rmSync(dir, { recursive: true, force: true }));
 
 const W = 160;
@@ -1182,7 +1182,7 @@ export async function encodeFrames(
     ff.on('error', (e) =>
       reject(
         new Error(
-          `could not run ffmpeg: ${e.message}. Run "autodemo doctor" for install instructions.`,
+          `could not run ffmpeg: ${e.message}. Run "castscript doctor" for install instructions.`,
         ),
       ),
     );
@@ -1313,7 +1313,7 @@ import { checkSchema } from '../validate/schema-check.js';
 import { probeVideo } from '../render/encoder.js';
 import { renderDemo, formatRenderReport } from './render.js';
 
-const dir = mkdtempSync(join(tmpdir(), 'autodemo-render-'));
+const dir = mkdtempSync(join(tmpdir(), 'castscript-render-'));
 afterAll(() => rmSync(dir, { recursive: true, force: true }));
 
 function load(path: string) {
@@ -1460,7 +1460,7 @@ export async function renderDemo(
 }
 
 export function formatRenderReport(report: RenderReport): string {
-  const lines = [`autodemo render — ${report.outputPath}`, ''];
+  const lines = [`castscript render — ${report.outputPath}`, ''];
 
   for (const scene of report.scenes) {
     lines.push(
@@ -1496,7 +1496,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { runCli, type CliIO } from './run.js';
 
-const dir = mkdtempSync(join(tmpdir(), 'autodemo-cli-render-'));
+const dir = mkdtempSync(join(tmpdir(), 'castscript-cli-render-'));
 afterAll(() => rmSync(dir, { recursive: true, force: true }));
 
 function captureIO() {
@@ -1506,7 +1506,7 @@ function captureIO() {
   return { io, out: () => out.join('\n'), err: () => err.join('\n') };
 }
 
-describe('autodemo render', () => {
+describe('castscript render', () => {
   it('renders the terminal fixture to the requested path', async () => {
     const out = join(dir, 'cli.mp4');
     const c = captureIO();
@@ -1562,7 +1562,7 @@ export async function renderCommand(argv: string[], io: CliIO): Promise<number> 
   const file = argv.find((a, i) => !a.startsWith('--') && i !== outIndex + 1);
 
   if (file === undefined) {
-    io.err('autodemo render: expects a file\n\nUsage: autodemo render [--out <path>] <file>');
+    io.err('castscript render: expects a file\n\nUsage: castscript render [--out <path>] <file>');
     return 2;
   }
 
@@ -1571,7 +1571,7 @@ export async function renderCommand(argv: string[], io: CliIO): Promise<number> 
     text = readFileSync(file, 'utf8');
   } catch (error) {
     io.err(
-      `autodemo render: cannot read ${file}: ${
+      `castscript render: cannot read ${file}: ${
         error instanceof Error ? error.message : String(error)
       }`,
     );
@@ -1592,7 +1592,7 @@ export async function renderCommand(argv: string[], io: CliIO): Promise<number> 
     io.out(formatRenderReport(report));
     return report.ok ? 0 : 1;
   } catch (error) {
-    io.err(`autodemo render: ${error instanceof Error ? error.message : String(error)}`);
+    io.err(`castscript render: ${error instanceof Error ? error.message : String(error)}`);
     return 2;
   }
 }
@@ -1624,7 +1624,7 @@ const io: CliIO = {
 runCli(process.argv.slice(2), io).then(
   (code) => finish(code),
   (error: unknown) => {
-    io.err(`autodemo: ${error instanceof Error ? error.message : String(error)}`);
+    io.err(`castscript: ${error instanceof Error ? error.message : String(error)}`);
     finish(2);
   },
 );
@@ -1654,7 +1654,7 @@ Expected: PASS — 6 tests.
 
 ```bash
 git add src/driver/render.ts src/driver/render.test.ts src/cli/render-command.ts src/cli/render-command.test.ts src/cli/run.ts src/cli/index.ts
-git commit -m "feat: render pipeline and autodemo render command"
+git commit -m "feat: render pipeline and castscript render command"
 ```
 
 ---
@@ -1696,7 +1696,7 @@ describe('Phase 1 exit criteria', () => {
     const { join } = await import('node:path');
     const { probeVideo } = await import('../render/encoder.js');
 
-    const dir = mkdtempSync(join(tmpdir(), 'autodemo-accept-'));
+    const dir = mkdtempSync(join(tmpdir(), 'castscript-accept-'));
     try {
       const out = join(dir, 'phase1.mp4');
       const c = captureIO();
@@ -1759,10 +1759,10 @@ git commit -m "test: phase 1 acceptance and reference demo video"
 
 - `npx vitest run` — all green, no `AttachConsole failed` in the output.
 - `npm run typecheck` and `npm run build` — clean.
-- `autodemo render fixtures/terminal/demo.yaml --out docs/terminal-demo.mp4` writes a playable h264 / yuv420p 1280x720 mp4 and exits 0.
+- `castscript render fixtures/terminal/demo.yaml --out docs/terminal-demo.mp4` writes a playable h264 / yuv420p 1280x720 mp4 and exits 0.
 - The video shows human-paced typing, an in-place progress-bar redraw, and correct colours.
 - A failing assertion makes `render` exit 1 and name the scene and reason.
-- `autodemo render` on an invalid script exits 1 with lint diagnostics and never starts a capture.
+- `castscript render` on an invalid script exits 1 with lint diagnostics and never starts a capture.
 - The CLI process exits on its own after a render — no hang from the PTY holding the event loop.
 - Runtime dependencies: `@fontsource/jetbrains-mono`, `@napi-rs/canvas`, `@xterm/headless`, `node-pty`, `yaml`, `zod`.
 

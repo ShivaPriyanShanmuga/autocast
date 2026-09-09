@@ -1,4 +1,4 @@
-# autodemo
+# castscript
 
 Agent-driven demo video recorder. A coding agent writes a YAML script,
 runs one command, and gets a **real recorded mp4** of a terminal and a
@@ -29,8 +29,8 @@ where a passing result would go.
 ## Install
 
 ```bash
-npm install --save-dev autodemo
-npx autodemo doctor    # checks ffmpeg, Chromium, node-pty
+npm install --save-dev castscript
+npx castscript doctor    # checks ffmpeg, Chromium, node-pty
 ```
 
 `doctor` reports every dependency with a copy-pasteable fix, and never
@@ -39,15 +39,15 @@ claims a check passed when it could not run it.
 ## Use
 
 ```bash
-npx autodemo init                  # scaffold demo.yaml for this project
-npx autodemo validate demo.yaml    # static check, no capture — free
-npx autodemo render demo.yaml      # record, encode, report
+npx castscript init                  # scaffold demo.yaml for this project
+npx castscript validate demo.yaml    # static check, no capture — free
+npx castscript render demo.yaml      # record, encode, report
 ```
 
 ## A script
 
 ```yaml
-autodemo: 1
+castscript: 1
 output:
   path: docs/demo.mp4
   canvas: [1280, 720]
@@ -134,19 +134,19 @@ error with `voice: { sync: strict }`.
 ## For agents
 
 `AGENTS.md` is written for coding agents and is the thing to point one
-at. A Claude Code skill lives in `skills/autodemo/`.
+at. A Claude Code skill lives in `skills/castscript/`.
 
 ## Status
 
 Phases 0–7 complete: terminal and browser capture, composition, pacing,
 verification, presentation, captions and voice, agent surface.
 
-Published as [`autodemo`](https://www.npmjs.com/package/autodemo). The
+Published as [`castscript`](https://www.npmjs.com/package/castscript). The
 project's git history and design docs use its working name, `autocast`.
 
 ## Design
 
-`docs/superpowers/specs/2026-09-04-autodemo-design.md` is the design
+`docs/superpowers/specs/2026-09-04-castscript-design.md` is the design
 document, including the decisions that were overturned by spikes and why.
 
 ## Licence

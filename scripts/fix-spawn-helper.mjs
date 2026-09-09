@@ -34,8 +34,8 @@ try {
 
   accessSync(helper, constants.F_OK); // throws if genuinely absent
   chmodSync(helper, 0o755);
-  process.stdout.write(`autodemo: made node-pty spawn-helper executable\n  ${helper}\n`);
+  process.stdout.write(`castscript: made node-pty spawn-helper executable\n  ${helper}\n`);
 } catch {
-  // Never fail an install over this. `autodemo doctor` reports it with
+  // Never fail an install over this. `castscript doctor` reports it with
   // the exact chmod if it is still wrong.
 }

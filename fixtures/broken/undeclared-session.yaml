@@ -1,4 +1,4 @@
-autodemo: 1
+castscript: 1
 output:
   path: docs/demo.mp4
 sessions:

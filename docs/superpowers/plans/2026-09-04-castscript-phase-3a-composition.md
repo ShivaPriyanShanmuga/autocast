@@ -1,4 +1,4 @@
-# autodemo Phase 3a — Composition — Implementation Plan
+# castscript Phase 3a — Composition — Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -8,7 +8,7 @@
 
 **Tech Stack:** No new dependencies. Reuses the Phase 1b terminal renderer, the Phase 2b browser compositor and resampler, and the shared encoder.
 
-**Spec:** `docs/superpowers/specs/2026-09-04-autodemo-design.md` — especially §4.2, §4.4, §4.6 and §12.
+**Spec:** `docs/superpowers/specs/2026-09-04-castscript-design.md` — especially §4.2, §4.4, §4.6 and §12.
 
 ## Global Constraints
 
@@ -174,7 +174,7 @@ import type { SceneCapture } from '../driver/capture.js';
 import { planComposition, wallClockAt, MIN_SCENE_SEC } from './composition.js';
 
 const script = {
-  autodemo: 1,
+  castscript: 1,
   output: { path: 'x.mp4', canvas: [1280, 720], fps: 30 },
   sessions: {
     api: { backend: 'terminal' },
@@ -1143,7 +1143,7 @@ describe('Phase 3 exit criteria', () => {
     const { join } = await import('node:path');
     const { probeVideo } = await import('../render/encoder.js');
 
-    const dir = mkdtempSync(join(tmpdir(), 'autodemo-p3-'));
+    const dir = mkdtempSync(join(tmpdir(), 'castscript-p3-'));
     try {
       const out = join(dir, 'flagship.mp4');
       const c = captureIO();
@@ -1211,7 +1211,7 @@ git commit -m "test: phase 3 acceptance and the flagship demo"
 
 - `npx vitest run` — all green, no unhandled rejections.
 - `npm run typecheck` and `npm run build` — clean.
-- `autodemo render fixtures/flagship/demo.yaml` writes one 1280x720 h264 mp4 covering all three scenes and exits 0.
+- `castscript render fixtures/flagship/demo.yaml` writes one 1280x720 h264 mp4 covering all three scenes and exits 0.
 - The video shows terminal, then browser, then browser-with-terminal-inset, with the inset displaying the request the browser itself made.
 - No resolution change at any scene boundary.
 - A step-less scene is held, not flashed.

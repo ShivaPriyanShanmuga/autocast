@@ -10,7 +10,7 @@ const MARK: Record<CheckResult['status'], string> = {
 
 export function formatCheckResults(results: readonly CheckResult[]): string {
   const width = Math.max(...results.map((r) => r.name.length), 0);
-  const lines: string[] = ['autodemo doctor', ''];
+  const lines: string[] = ['castscript doctor', ''];
 
   for (const r of results) {
     lines.push(`  ${MARK[r.status]}  ${r.name.padEnd(width)}  ${r.detail}`);

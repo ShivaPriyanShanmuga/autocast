@@ -39,7 +39,7 @@ describe('formatCheckResults', () => {
   });
 });
 
-describe('autodemo doctor', () => {
+describe('castscript doctor', () => {
   it('runs and returns 0 or 1 without throwing', async () => {
     const c = captureIO();
     const code = await runCli(['doctor'], c.io);

@@ -1,4 +1,4 @@
-# autodemo Phase 2a — Browser capture — Implementation Plan
+# castscript Phase 2a — Browser capture — Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -8,7 +8,7 @@
 
 **Tech Stack:** `playwright` 1.62.1 (Chromium). Existing: TypeScript 5.9, Node 20+, vitest 3.
 
-**Spec:** `docs/superpowers/specs/2026-09-04-autodemo-design.md` — especially §4.1, §4.5, §4.5.1, §4.6 and §8.
+**Spec:** `docs/superpowers/specs/2026-09-04-castscript-design.md` — especially §4.1, §4.5, §4.5.1, §4.6 and §8.
 
 ## Global Constraints
 
@@ -112,7 +112,7 @@ Create `fixtures/web-app/server.mjs`:
 
 ```js
 #!/usr/bin/env node
-// A dependency-free HTTP server used by autodemo's browser tests.
+// A dependency-free HTTP server used by castscript's browser tests.
 // Never add npm dependencies: tests must run with no install and no network.
 
 import { createServer } from 'node:http';
@@ -178,7 +178,7 @@ Create `fixtures/web-app/public/index.html`:
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <title>autodemo order desk</title>
+    <title>castscript order desk</title>
     <style>
       :root { color-scheme: light; }
       * { box-sizing: border-box; }
@@ -214,7 +214,7 @@ Create `fixtures/web-app/public/index.html`:
     </style>
   </head>
   <body>
-    <header><h1>autodemo order desk</h1></header>
+    <header><h1>castscript order desk</h1></header>
     <main>
       <div class="card">
         <button data-test="new-order" class="secondary">New order</button>
@@ -256,7 +256,7 @@ Create `fixtures/web-app/README.md`:
 ```markdown
 # web-app fixture
 
-A dependency-free HTTP server used by autodemo's browser tests. Never add
+A dependency-free HTTP server used by castscript's browser tests. Never add
 npm dependencies — tests must run with no install and no network.
 
     node fixtures/web-app/server.mjs 3000
@@ -351,7 +351,7 @@ const chromiumCheck: Check = {
             ? 'browser binary not found'
             : `playwright unavailable: ${error instanceof Error ? error.message : String(error)}`,
         hint: [
-          '    autodemo drives a real Chromium for browser scenes.',
+          '    castscript drives a real Chromium for browser scenes.',
           '    Install it with:',
           '      npx playwright install chromium',
         ].join('\n'),
@@ -421,7 +421,7 @@ import { FrameStore, relativeTimeline } from './frame-store.js';
 
 const dirs: string[] = [];
 const newDir = () => {
-  const d = mkdtempSync(join(tmpdir(), 'autodemo-frames-'));
+  const d = mkdtempSync(join(tmpdir(), 'castscript-frames-'));
   dirs.push(d);
   return d;
 };
@@ -669,7 +669,7 @@ const open: BrowserSession[] = [];
 const dirs: string[] = [];
 
 async function session(viewport: [number, number] = [640, 400]) {
-  const dir = mkdtempSync(join(tmpdir(), 'autodemo-bs-'));
+  const dir = mkdtempSync(join(tmpdir(), 'castscript-bs-'));
   dirs.push(dir);
   const s = await openBrowserSession({ viewport, framesDir: join(dir, 'frames') });
   open.push(s);
@@ -687,7 +687,7 @@ describe('BrowserSession', () => {
   it('loads a page and reads its content', async () => {
     const s = await session();
     await s.goto(BASE);
-    expect(await s.page.title()).toContain('autodemo');
+    expect(await s.page.title()).toContain('castscript');
   }, 60000);
 
   it('captures frames at the CSS viewport size, not deviceScaleFactor', async () => {
@@ -1001,7 +1001,7 @@ const open: BrowserSession[] = [];
 const dirs: string[] = [];
 
 async function ctx(): Promise<BrowserStepContext> {
-  const dir = mkdtempSync(join(tmpdir(), 'autodemo-bsteps-'));
+  const dir = mkdtempSync(join(tmpdir(), 'castscript-bsteps-'));
   dirs.push(dir);
   const session = await openBrowserSession({
     viewport: [640, 400],
@@ -1266,7 +1266,7 @@ const open: BrowserSession[] = [];
 const dirs: string[] = [];
 
 async function session() {
-  const dir = mkdtempSync(join(tmpdir(), 'autodemo-ba-'));
+  const dir = mkdtempSync(join(tmpdir(), 'castscript-ba-'));
   dirs.push(dir);
   const s = await openBrowserSession({ viewport: [640, 400], framesDir: join(dir, 'frames') });
   open.push(s);
@@ -1468,7 +1468,7 @@ git commit -m "feat: browser assertions"
 - Produces:
   - `CaptureArtifact` gains `frames: Record<string, FrameManifest>` alongside `casts`
   - `captureTerminalDemo` is renamed `captureDemo` and handles both backends; the old name is re-exported so existing callers keep working until Phase 2b updates them.
-  - New option: `framesRoot?: string` — where browser frames are written (default `.autodemo/frames`)
+  - New option: `framesRoot?: string` — where browser frames are written (default `.castscript/frames`)
 
 A demo whose sessions are all terminal must behave exactly as before.
 
@@ -1477,7 +1477,7 @@ A demo whose sessions are all terminal must behave exactly as before.
 Create `fixtures/browser/demo.yaml`:
 
 ```yaml
-autodemo: 1
+castscript: 1
 output:
   path: docs/browser-demo.mp4
   canvas: [1280, 720]
@@ -1557,7 +1557,7 @@ describe('captureDemo with a browser session', () => {
       expect(result.frames.web!.width).toBe(1280);
     } finally {
       const { rmSync } = await import('node:fs');
-      rmSync('.autodemo', { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+      rmSync('.castscript', { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
     }
   }, 180000);
 
@@ -1614,7 +1614,7 @@ type AnySession =
   | { kind: 'terminal'; id: string; session: TerminalSession }
   | { kind: 'browser'; id: string; session: BrowserSession };
 
-const framesRoot = opts.framesRoot ?? join('.autodemo', 'frames');
+const framesRoot = opts.framesRoot ?? join('.castscript', 'frames');
 const sessions: AnySession[] = [];
 
 for (const [id, config] of Object.entries(script.sessions)) {
@@ -1833,8 +1833,8 @@ git commit -m "test: phase 2a acceptance"
 
 - `npx vitest run` — all green, no `AttachConsole failed`, no unhandled rejections.
 - `npm run typecheck` and `npm run build` — clean.
-- `autodemo doctor` reports a `chromium` row.
-- `autodemo validate fixtures/browser/demo.yaml` exits 0.
+- `castscript doctor` reports a `chromium` row.
+- `castscript validate fixtures/browser/demo.yaml` exits 0.
 - `captureDemo` drives the browser fixture: two scenes, all assertions green, frames on disk with unix-second timestamps.
 - A terminal-only demo captures exactly as it did in Phase 1, and the Phase 1 render pipeline still produces its mp4.
 - No orphaned `chrome.exe` or `node.exe` processes after the suite.

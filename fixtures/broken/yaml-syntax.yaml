@@ -1,4 +1,4 @@
-autodemo: 1
+castscript: 1
 scenes:
   - id: boot
    use: api

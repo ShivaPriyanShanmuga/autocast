@@ -1,4 +1,4 @@
-autodemo: 1
+castscript: 1
 output:
   path: docs/terminal-demo.mp4
 
@@ -17,12 +17,12 @@ scenes:
     use: cli
     narrate: "First, a greeting."
     steps:
-      - type: "node fixtures/cli-app/cli.mjs greet autodemo"
+      - type: "node fixtures/cli-app/cli.mjs greet castscript"
       - key: Enter
       - wait_for:
           stdout: /ready/
     assert:
-      - stdout_contains: "hello autodemo"
+      - stdout_contains: "hello castscript"
 
   - id: build
     use: cli

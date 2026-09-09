@@ -1,5 +1,5 @@
 {
-  "name": "autodemo",
+  "name": "castscript",
   "version": "0.1.0",
   "description": "Agent-driven demo video recorder for web and non-web projects",
   "license": "MIT",
@@ -22,7 +22,7 @@
     "node": ">=20"
   },
   "bin": {
-    "autodemo": "dist/cli/index.js"
+    "castscript": "dist/cli/index.js"
   },
   "files": [
     "dist",

@@ -6,7 +6,7 @@ import { FrameStore, relativeTimeline } from './frame-store.js';
 
 const dirs: string[] = [];
 const newDir = () => {
-  const d = mkdtempSync(join(tmpdir(), 'autodemo-frames-'));
+  const d = mkdtempSync(join(tmpdir(), 'castscript-frames-'));
   dirs.push(d);
   return d;
 };

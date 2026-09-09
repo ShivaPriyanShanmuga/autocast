@@ -20,7 +20,7 @@ describe('runCli', () => {
     const c = captureIO();
     const code = await runCli(['--help'], c.io);
     expect(code).toBe(0);
-    expect(c.out()).toContain('autodemo');
+    expect(c.out()).toContain('castscript');
     expect(c.out()).toContain('validate');
   });
 

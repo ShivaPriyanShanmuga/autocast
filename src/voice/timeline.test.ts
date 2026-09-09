@@ -8,7 +8,7 @@ import { probeAudio } from './probe.js';
 import { rmsAt } from './rms.js';
 import type { CompositionPlan, SceneWindow } from '../render/composition.js';
 
-const dir = mkdtempSync(join(tmpdir(), 'autodemo-track-'));
+const dir = mkdtempSync(join(tmpdir(), 'castscript-track-'));
 afterAll(() => rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }));
 
 function window(over: Partial<SceneWindow> & { id: string }): SceneWindow {

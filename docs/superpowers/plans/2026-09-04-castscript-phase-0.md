@@ -1,14 +1,14 @@
-# autodemo Phase 0 — Foundations and validate — Implementation Plan
+# castscript Phase 0 — Foundations and validate — Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Ship a working `autodemo` CLI that can validate a demo script statically and report missing system dependencies — with zero capture, encoding, or browser code.
+**Goal:** Ship a working `castscript` CLI that can validate a demo script statically and report missing system dependencies — with zero capture, encoding, or browser code.
 
 **Architecture:** A Zod schema is the single source of truth for the demo-script format; TypeScript types are inferred from it and JSON Schema is generated from it, so the three can never drift. YAML is parsed with position tracking so every diagnostic points at a real line and column. Validation runs in two stages — schema shape, then semantic lint — and both emit the same `Diagnostic` shape to one formatter.
 
 **Tech Stack:** TypeScript 5.9 on Node 20+, ESM. `zod` v4 (schema + JSON Schema generation), `yaml` v2 (parsing with source positions), `vitest` v3 (tests). CLI argument parsing uses `node:util`'s built-in `parseArgs` — no dependency. Total runtime dependencies: 2.
 
-**Spec:** `docs/superpowers/specs/2026-09-04-autodemo-design.md`
+**Spec:** `docs/superpowers/specs/2026-09-04-castscript-design.md`
 
 ## Global Constraints
 
@@ -68,7 +68,7 @@ describe('runCli', () => {
     const c = captureIO();
     const code = await runCli(['--help'], c.io);
     expect(code).toBe(0);
-    expect(c.out()).toContain('autodemo');
+    expect(c.out()).toContain('castscript');
     expect(c.out()).toContain('validate');
   });
 
@@ -99,12 +99,12 @@ Expected: FAIL — cannot resolve `./run.js`.
 
 ```json
 {
-  "name": "autodemo",
+  "name": "castscript",
   "version": "0.0.0",
   "description": "Agent-driven demo video recorder for web and non-web projects",
   "type": "module",
   "engines": { "node": ">=20" },
-  "bin": { "autodemo": "./dist/cli/index.js" },
+  "bin": { "castscript": "./dist/cli/index.js" },
   "files": ["dist"],
   "scripts": {
     "build": "tsc -p tsconfig.json",
@@ -166,7 +166,7 @@ export default defineConfig({
 node_modules/
 dist/
 coverage/
-.autodemo/
+.castscript/
 *.tsbuildinfo
 ```
 
@@ -184,10 +184,10 @@ export interface CliIO {
 
 export const VERSION = '0.0.0';
 
-const USAGE = `autodemo ${VERSION} — agent-driven demo video recorder
+const USAGE = `castscript ${VERSION} — agent-driven demo video recorder
 
 Usage:
-  autodemo <command> [options]
+  castscript <command> [options]
 
 Commands:
   validate <file>   Check a demo script without running it
@@ -211,12 +211,12 @@ export async function runCli(argv: string[], io: CliIO): Promise<number> {
 
   const command = argv[0];
   if (command === undefined) {
-    io.err('autodemo: no command given\n');
+    io.err('castscript: no command given\n');
     io.err(USAGE);
     return 2;
   }
 
-  io.err(`autodemo: unknown command "${command}"\n`);
+  io.err(`castscript: unknown command "${command}"\n`);
   io.err(USAGE);
   return 2;
 }
@@ -236,7 +236,7 @@ const io: CliIO = {
 runCli(process.argv.slice(2), io).then(
   (code) => { process.exitCode = code; },
   (error: unknown) => {
-    io.err(`autodemo: ${error instanceof Error ? error.message : String(error)}`);
+    io.err(`castscript: ${error instanceof Error ? error.message : String(error)}`);
     process.exitCode = 2;
   },
 );
@@ -354,7 +354,7 @@ import { describe, it, expect } from 'vitest';
 import { DemoScript } from './demo.js';
 
 const minimal = {
-  autodemo: 1,
+  castscript: 1,
   output: { path: 'docs/demo.mp4' },
   sessions: { api: { backend: 'terminal' } },
   scenes: [{ id: 'boot', use: 'api', steps: [{ type: 'ls' }] }],
@@ -373,7 +373,7 @@ describe('DemoScript', () => {
   });
 
   it('rejects a wrong version literal', () => {
-    const r = DemoScript.safeParse({ ...minimal, autodemo: 2 });
+    const r = DemoScript.safeParse({ ...minimal, castscript: 2 });
     expect(r.success).toBe(false);
   });
 
@@ -607,7 +607,7 @@ const Style = z
 
 export const DemoScript = z
   .object({
-    autodemo: z.literal(1),
+    castscript: z.literal(1),
     output: z
       .object({
         path: z.string().min(1),
@@ -668,7 +668,7 @@ Create `src/validate/parse.test.ts`:
 import { describe, it, expect } from 'vitest';
 import { parseSource } from './parse.js';
 
-const SAMPLE = `autodemo: 1
+const SAMPLE = `castscript: 1
 output:
   path: docs/demo.mp4
 sessions:
@@ -682,7 +682,7 @@ scenes:
 describe('parseSource', () => {
   it('returns the parsed value', () => {
     const p = parseSource(SAMPLE);
-    expect((p.value as Record<string, unknown>).autodemo).toBe(1);
+    expect((p.value as Record<string, unknown>).castscript).toBe(1);
   });
 
   it('locates a top-level key', () => {
@@ -956,7 +956,7 @@ import { describe, it, expect } from 'vitest';
 import { parseSource } from './parse.js';
 import { checkSchema } from './schema-check.js';
 
-const VALID = `autodemo: 1
+const VALID = `castscript: 1
 output:
   path: docs/demo.mp4
 sessions:
@@ -999,9 +999,9 @@ describe('checkSchema', () => {
   });
 
   it('includes the failing path in the message', () => {
-    const bad = VALID.replace('autodemo: 1', 'autodemo: 2');
+    const bad = VALID.replace('castscript: 1', 'castscript: 2');
     const r = checkSchema(parseSource(bad));
-    expect(r.diagnostics[0]!.message).toContain('autodemo');
+    expect(r.diagnostics[0]!.message).toContain('castscript');
   });
 });
 ```
@@ -1126,7 +1126,7 @@ function lintYaml(text: string) {
 
 const codes = (text: string) => lintYaml(text).map((d) => d.code);
 
-const BASE = `autodemo: 1
+const BASE = `castscript: 1
 output:
   path: docs/demo.mp4
 sessions:
@@ -1509,7 +1509,7 @@ describe('validateText', () => {
 `fixtures/mixed/demo.yaml` — the flagship from spec §5:
 
 ```yaml
-autodemo: 1
+castscript: 1
 output:
   path: docs/demo.mp4
   canvas: [1280, 720]
@@ -1576,7 +1576,7 @@ scenes:
 `fixtures/broken/undeclared-session.yaml`:
 
 ```yaml
-autodemo: 1
+castscript: 1
 output:
   path: docs/demo.mp4
 sessions:
@@ -1592,7 +1592,7 @@ scenes:
 `fixtures/broken/bad-regex.yaml`:
 
 ```yaml
-autodemo: 1
+castscript: 1
 output:
   path: docs/demo.mp4
 sessions:
@@ -1611,7 +1611,7 @@ scenes:
 `fixtures/broken/wrong-backend.yaml`:
 
 ```yaml
-autodemo: 1
+castscript: 1
 output:
   path: docs/demo.mp4
 sessions:
@@ -1629,7 +1629,7 @@ scenes:
 `fixtures/broken/yaml-syntax.yaml`:
 
 ```yaml
-autodemo: 1
+castscript: 1
 scenes:
   - id: boot
    use: api
@@ -1640,7 +1640,7 @@ scenes:
 unless `--strict` is passed:
 
 ```yaml
-autodemo: 1
+castscript: 1
 output:
   path: docs/demo.mp4
 sessions:
@@ -1701,7 +1701,7 @@ function captureIO() {
   return { io, out: () => out.join('\n'), err: () => err.join('\n') };
 }
 
-describe('autodemo validate', () => {
+describe('castscript validate', () => {
   it('exits 0 on the flagship fixture', async () => {
     const c = captureIO();
     const code = await runCli(['validate', 'fixtures/mixed/demo.yaml'], c.io);
@@ -1766,7 +1766,7 @@ export async function validateCommand(argv: string[], io: CliIO): Promise<number
   const file = argv.find((a) => !a.startsWith('--'));
 
   if (file === undefined) {
-    io.err('autodemo validate: expects a file\n\nUsage: autodemo validate [--strict] <file>');
+    io.err('castscript validate: expects a file\n\nUsage: castscript validate [--strict] <file>');
     return 2;
   }
 
@@ -1775,7 +1775,7 @@ export async function validateCommand(argv: string[], io: CliIO): Promise<number
     text = readFileSync(file, 'utf8');
   } catch (error) {
     io.err(
-      `autodemo validate: cannot read ${file}: ${
+      `castscript validate: cannot read ${file}: ${
         error instanceof Error ? error.message : String(error)
       }`,
     );
@@ -1814,7 +1814,7 @@ Expected: PASS — all suites green.
 
 ```bash
 git add src/validate/validate.ts src/validate/validate.test.ts src/cli/validate-command.ts src/cli/validate-command.test.ts src/cli/run.ts fixtures/
-git commit -m "feat: autodemo validate command with fixtures"
+git commit -m "feat: castscript validate command with fixtures"
 ```
 
 ---
@@ -1960,7 +1960,7 @@ export interface Check {
 }
 
 const FFMPEG_INSTALL = [
-  '    autodemo needs ffmpeg to encode video.',
+  '    castscript needs ffmpeg to encode video.',
   '    Windows:  winget install Gyan.FFmpeg',
   '    macOS:    brew install ffmpeg',
   '    Linux:    sudo apt install ffmpeg   (or your distro equivalent)',
@@ -1989,7 +1989,7 @@ const x264Check: Check = {
         name: 'libx264',
         status: 'fail',
         detail: 'ffmpeg was built without libx264',
-        hint: '    autodemo encodes H.264. Install a full ffmpeg build:\n' + FFMPEG_INSTALL,
+        hint: '    castscript encodes H.264. Install a full ffmpeg build:\n' + FFMPEG_INSTALL,
       };
     }
     return { name: 'libx264', status: 'ok', detail: 'enabled' };
@@ -2024,7 +2024,7 @@ const cwdWritableCheck: Check = {
         name: 'cwd writable',
         status: 'fail',
         detail: `cannot write to ${process.cwd()}`,
-        hint: '    autodemo writes intermediates to .autodemo/ in the working directory.',
+        hint: '    castscript writes intermediates to .castscript/ in the working directory.',
       };
     }
   },
@@ -2083,7 +2083,7 @@ describe('formatCheckResults', () => {
   });
 });
 
-describe('autodemo doctor', () => {
+describe('castscript doctor', () => {
   it('runs and returns 0 or 1 without throwing', async () => {
     const c = captureIO();
     const code = await runCli(['doctor'], c.io);
@@ -2110,7 +2110,7 @@ const MARK: Record<CheckResult['status'], string> = { ok: 'OK  ', warn: 'WARN', 
 
 export function formatCheckResults(results: readonly CheckResult[]): string {
   const width = Math.max(...results.map((r) => r.name.length), 0);
-  const lines: string[] = ['autodemo doctor', ''];
+  const lines: string[] = ['castscript doctor', ''];
 
   for (const r of results) {
     lines.push(`  ${MARK[r.status]}  ${r.name.padEnd(width)}  ${r.detail}`);
@@ -2169,7 +2169,7 @@ Expected: ffmpeg, libx264 and librubberband all report OK on a machine with a fu
 
 ```bash
 git add src/doctor/ src/cli/doctor-command.ts src/cli/doctor-command.test.ts src/cli/run.ts
-git commit -m "feat: autodemo doctor with per-platform install hints"
+git commit -m "feat: castscript doctor with per-platform install hints"
 ```
 
 ---
@@ -2200,7 +2200,7 @@ function captureIO() {
   return { io, out: () => out.join('\n') };
 }
 
-describe('autodemo schema', () => {
+describe('castscript schema', () => {
   it('prints valid JSON', async () => {
     const c = captureIO();
     const code = await runCli(['schema'], c.io);
@@ -2214,7 +2214,7 @@ describe('autodemo schema', () => {
     const schema = JSON.parse(c.out()) as Record<string, unknown>;
     const props = (schema.properties ?? {}) as Record<string, unknown>;
     expect(Object.keys(props)).toEqual(
-      expect.arrayContaining(['autodemo', 'output', 'sessions', 'scenes']),
+      expect.arrayContaining(['castscript', 'output', 'sessions', 'scenes']),
     );
   });
 });
@@ -2353,7 +2353,7 @@ Confirm the doctor output names real paths and versions, and that the broken fix
 
 ```bash
 git add src/cli/schema-command.ts src/cli/schema-command.test.ts src/cli/acceptance.test.ts src/cli/run.ts
-git commit -m "feat: autodemo schema command and phase 0 acceptance tests"
+git commit -m "feat: castscript schema command and phase 0 acceptance tests"
 ```
 
 ---
@@ -2363,10 +2363,10 @@ git commit -m "feat: autodemo schema command and phase 0 acceptance tests"
 - `npx vitest run` — all green.
 - `npm run typecheck` — clean.
 - `npm run build` — produces `dist/`.
-- `autodemo doctor` truthfully reports ffmpeg, libx264, librubberband and cwd writability, with copy-pasteable install commands for anything missing.
-- `autodemo validate fixtures/mixed/demo.yaml` exits 0.
+- `castscript doctor` truthfully reports ffmpeg, libx264, librubberband and cwd writability, with copy-pasteable install commands for anything missing.
+- `castscript validate fixtures/mixed/demo.yaml` exits 0.
 - Each fixture under `fixtures/broken/` exits 1 with a message naming the file, line, column and reason.
 - `fixtures/warnings/no-assertions.yaml` exits 0 normally and 1 under `--strict`.
-- `autodemo schema` emits JSON Schema generated from the Zod schema.
+- `castscript schema` emits JSON Schema generated from the Zod schema.
 - Runtime dependencies are exactly `yaml` and `zod`.
 - No capture, encoding, browser or PTY code exists in the repo.

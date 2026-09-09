@@ -1,4 +1,4 @@
-# autodemo Phase 2b — Browser rendering — Implementation Plan
+# castscript Phase 2b — Browser rendering — Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -8,7 +8,7 @@
 
 **Tech Stack:** `@napi-rs/canvas` (decode + composite), existing encoder and CLI. No new dependencies.
 
-**Spec:** `docs/superpowers/specs/2026-09-04-autodemo-design.md` — especially §4.2, §4.4, §4.5.1, §7.2 and §13.
+**Spec:** `docs/superpowers/specs/2026-09-04-castscript-design.md` — especially §4.2, §4.4, §4.5.1, §7.2 and §13.
 
 ## Global Constraints
 
@@ -251,7 +251,7 @@ import { createCanvas } from '@napi-rs/canvas';
 import { DEFAULT_THEME } from './theme.js';
 import { BrowserFrameRenderer } from './browser-frame.js';
 
-const dir = mkdtempSync(join(tmpdir(), 'autodemo-bf-'));
+const dir = mkdtempSync(join(tmpdir(), 'castscript-bf-'));
 afterAll(() => rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }));
 
 /** Write a solid-colour JPEG to disk and return its path. */
@@ -770,7 +770,7 @@ const open: BrowserSession[] = [];
 const dirs: string[] = [];
 
 async function ctx() {
-  const dir = mkdtempSync(join(tmpdir(), 'autodemo-ct-'));
+  const dir = mkdtempSync(join(tmpdir(), 'castscript-ct-'));
   dirs.push(dir);
   const session = await openBrowserSession({
     viewport: [640, 400],
@@ -1191,7 +1191,7 @@ describe('Phase 2 exit criteria', () => {
     const { join } = await import('node:path');
     const { probeVideo } = await import('../render/encoder.js');
 
-    const dir = mkdtempSync(join(tmpdir(), 'autodemo-p2-'));
+    const dir = mkdtempSync(join(tmpdir(), 'castscript-p2-'));
     try {
       // Retarget the fixture at this test's port.
       const yaml = readFileSync('fixtures/browser/demo.yaml', 'utf8').replace(
@@ -1266,7 +1266,7 @@ git commit -m "test: phase 2 acceptance and reference browser demo"
 
 - `npx vitest run` — all green, no unhandled rejections.
 - `npm run typecheck` and `npm run build` — clean.
-- `autodemo render fixtures/browser/demo.yaml` writes a playable h264 / yuv420p 1280x720 mp4 and exits 0.
+- `castscript render fixtures/browser/demo.yaml` writes a playable h264 / yuv420p 1280x720 mp4 and exits 0.
 - The video shows the web app being driven, with a visible cursor that eases between targets and pulses on click.
 - A demo mixing terminal and browser sessions fails with a message naming Phase 3, rather than silently rendering half of it.
 - Phase 1's terminal demo still renders identically.

@@ -96,7 +96,7 @@ export async function executeStep(step: AnyStep, ctx: StepContext): Promise<Step
   }
 
   if (typeof step.run === 'string') {
-    const marker = `__autodemo_done_${Math.random().toString(36).slice(2, 8)}__`;
+    const marker = `__castscript_done_${Math.random().toString(36).slice(2, 8)}__`;
     const joiner = process.platform === 'win32' ? ' & ' : ' ; ';
     ctx.session.write(`${step.run}${joiner}echo ${marker}\r`);
     // The shell echoes the command line before running it, so the marker

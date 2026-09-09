@@ -7,7 +7,7 @@ import { DEFAULT_THEME } from './theme.js';
 import { BrowserFrameRenderer, composeBrowserWithCursor } from './browser-frame.js';
 import type { CursorKeyframe } from './cursor.js';
 
-const dir = mkdtempSync(join(tmpdir(), 'autodemo-bf-'));
+const dir = mkdtempSync(join(tmpdir(), 'castscript-bf-'));
 afterAll(() => rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }));
 
 /** Write a solid-colour JPEG to disk and return its path. */

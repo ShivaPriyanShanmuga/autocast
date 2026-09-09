@@ -1,6 +1,6 @@
 # web-app fixture
 
-A dependency-free HTTP server used by autodemo's browser tests. Never add
+A dependency-free HTTP server used by castscript's browser tests. Never add
 npm dependencies — tests must run with no install and no network.
 
     node fixtures/web-app/server.mjs 3000

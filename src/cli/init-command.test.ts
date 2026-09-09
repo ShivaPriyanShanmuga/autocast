@@ -8,7 +8,7 @@ import { validateCommand } from './validate-command.js';
 
 const dirs: string[] = [];
 function scratch(files: Record<string, string> = {}): string {
-  const dir = mkdtempSync(join(tmpdir(), 'autodemo-init-'));
+  const dir = mkdtempSync(join(tmpdir(), 'castscript-init-'));
   dirs.push(dir);
   for (const [name, body] of Object.entries(files)) {
     mkdirSync(join(dir, name, '..'), { recursive: true });
@@ -60,7 +60,7 @@ describe('initCommand', () => {
     const { io: cio } = io();
     expect(await initCommand(['--dir', dir], cio)).toBe(0);
     expect(existsSync(join(dir, 'demo.yaml'))).toBe(true);
-    expect(existsSync(join(dir, '.autodemo', 'schema.json'))).toBe(true);
+    expect(existsSync(join(dir, '.castscript', 'schema.json'))).toBe(true);
   });
 
   it('scaffolds something that validates unedited', async () => {
@@ -73,7 +73,7 @@ describe('initCommand', () => {
     expect(await validateCommand([join(dir, 'demo.yaml')], v.io)).toBe(0);
   });
 
-  it('writes exactly the schema `autodemo schema` prints', async () => {
+  it('writes exactly the schema `castscript schema` prints', async () => {
     // Two copies that can drift is the duplication section 9 rejected
     // MCP for. They must come from one place.
     const dir = scratch();
@@ -82,13 +82,13 @@ describe('initCommand', () => {
 
     const s = io();
     await schemaCommand([], s.io);
-    expect(readFileSync(join(dir, '.autodemo', 'schema.json'), 'utf8').trim()).toBe(
+    expect(readFileSync(join(dir, '.castscript', 'schema.json'), 'utf8').trim()).toBe(
       s.out.join('').trim(),
     );
   });
 
   it('refuses to clobber an existing demo script', async () => {
-    const dir = scratch({ 'demo.yaml': 'autodemo: 1 # hand written\n' });
+    const dir = scratch({ 'demo.yaml': 'castscript: 1 # hand written\n' });
     const { io: cio, err } = io();
     expect(await initCommand(['--dir', dir], cio)).not.toBe(0);
     expect(readFileSync(join(dir, 'demo.yaml'), 'utf8')).toContain('hand written');
@@ -96,7 +96,7 @@ describe('initCommand', () => {
   });
 
   it('overwrites when asked', async () => {
-    const dir = scratch({ 'demo.yaml': 'autodemo: 1 # hand written\n' });
+    const dir = scratch({ 'demo.yaml': 'castscript: 1 # hand written\n' });
     const { io: cio } = io();
     expect(await initCommand(['--dir', dir, '--force'], cio)).toBe(0);
     expect(readFileSync(join(dir, 'demo.yaml'), 'utf8')).not.toContain('hand written');
@@ -121,7 +121,7 @@ describe('initCommand', () => {
     const { io: cio, out } = io();
     await initCommand(['--dir', dir], cio);
     const text = out.join('');
-    expect(text).toMatch(/autodemo validate/);
-    expect(text).toMatch(/autodemo render/);
+    expect(text).toMatch(/castscript validate/);
+    expect(text).toMatch(/castscript render/);
   });
 });
