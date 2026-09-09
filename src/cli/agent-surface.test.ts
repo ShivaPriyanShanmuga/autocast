@@ -47,7 +47,14 @@ describe('the knowledge an agent is handed', () => {
   });
 
   it('the skill has frontmatter saying WHEN to use it', () => {
-    const text = readFileSync(join(ROOT, 'skills', 'autodemo', 'SKILL.md'), 'utf8');
+    // Line endings normalised first. git converts these to CRLF on a
+    // Windows checkout, and a test about CONTENT that fails on an
+    // encoding difference is testing the wrong thing — this broke on
+    // exactly that, on the platform it was written on.
+    const text = readFileSync(join(ROOT, 'skills', 'autodemo', 'SKILL.md'), 'utf8').replace(
+      /\r\n/g,
+      '\n',
+    );
     const front = /^---\n([\s\S]*?)\n---/.exec(text);
     expect(front).not.toBeNull();
     expect(front![1]).toMatch(/^name:\s*autodemo$/m);
