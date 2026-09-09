@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>shipboard</title>
+<style>
+  :root {
+    --bg: #0b0d14;
+    --panel: #141824;
+    --line: #232838;
+    --dim: #7c86a0;
+    --text: #e8ecf6;
+    --go: #34d399;
+    --run: #60a5fa;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background: radial-gradient(1200px 600px at 50% -10%, #1a2030, var(--bg));
+    color: var(--text);
+    font: 15px/1.5 ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 40px;
+  }
+  main { width: 760px; }
+  header { display: flex; align-items: baseline; gap: 14px; margin-bottom: 28px; }
+  h1 { font-size: 26px; margin: 0; letter-spacing: -0.5px; }
+  .sub { color: var(--dim); font-size: 14px; }
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    padding: 28px;
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
+  }
+  .stages { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin: 4px 0 26px; }
+  .stage {
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 16px 12px;
+    text-align: center;
+    background: #10141f;
+    transition: border-color .25s, background .25s, color .25s;
+  }
+  .stage .dot {
+    width: 10px; height: 10px; border-radius: 50%;
+    background: #2c3346; margin: 0 auto 10px;
+    transition: background .25s, box-shadow .25s;
+  }
+  .stage .name { font-size: 13px; color: var(--dim); text-transform: uppercase; letter-spacing: .08em; }
+  .stage.running { border-color: var(--run); background: #101a2c; }
+  .stage.running .dot { background: var(--run); box-shadow: 0 0 0 4px rgba(96, 165, 250, .18); }
+  .stage.running .name { color: var(--run); }
+  .stage.done { border-color: rgba(52, 211, 153, .45); }
+  .stage.done .dot { background: var(--go); }
+  .stage.done .name { color: var(--go); }
+  .row { display: flex; align-items: center; gap: 16px; }
+  button {
+    font: inherit; font-weight: 600;
+    color: #06231a; background: var(--go);
+    border: 0; border-radius: 10px;
+    padding: 12px 22px; cursor: pointer;
+  }
+  button:disabled { opacity: .45; cursor: default; }
+  .result {
+    margin-left: auto; display: none;
+    align-items: center; gap: 10px;
+    border: 1px solid rgba(52, 211, 153, .5);
+    background: rgba(52, 211, 153, .1);
+    color: var(--go);
+    border-radius: 999px; padding: 9px 18px;
+    font-weight: 650; letter-spacing: .01em;
+  }
+  .result.show { display: flex; }
+  .result code { color: var(--go); opacity: .8; font-weight: 500; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>shipboard</h1>
+    <span class="sub">deploy pipeline</span>
+  </header>
+
+  <div class="card">
+    <div class="stages" id="stages"></div>
+    <div class="row">
+      <button data-test="deploy">Deploy to production</button>
+      <span class="sub" data-test="hint">five stages, about two seconds</span>
+      <span class="result" data-test="result">
+        Deployed <code data-test="deploy-id"></code>
+      </span>
+    </div>
+  </div>
+</main>
+
+<script>
+  const STAGES = ['build', 'test', 'bundle', 'upload', 'live'];
+  const stagesEl = document.getElementById('stages');
+  const button = document.querySelector('[data-test=deploy]');
+  const result = document.querySelector('[data-test=result]');
+  const idEl = document.querySelector('[data-test=deploy-id]');
+  const hint = document.querySelector('[data-test=hint]');
+
+  stagesEl.innerHTML = STAGES.map(
+    (s) => `<div class="stage" data-stage="${s}"><div class="dot"></div><div class="name">${s}</div></div>`,
+  ).join('');
+
+  function paint(current, done) {
+    STAGES.forEach((s, i) => {
+      const el = stagesEl.querySelector(`[data-stage="${s}"]`);
+      el.classList.toggle('done', done || i < current);
+      el.classList.toggle('running', !done && i === current);
+    });
+  }
+
+  async function poll() {
+    const r = await fetch('/api/status').then((x) => x.json());
+    paint(r.current, r.done);
+    if (r.done) {
+      idEl.textContent = r.id;
+      result.classList.add('show');
+      hint.style.display = 'none';
+      button.disabled = false;
+      button.textContent = 'Deploy to production';
+      return;
+    }
+    setTimeout(poll, 120);
+  }
+
+  button.addEventListener('click', async () => {
+    button.disabled = true;
+    button.textContent = 'Deploying…';
+    result.classList.remove('show');
+    await fetch('/api/deploy', { method: 'POST' });
+    poll();
+  });
+</script>
+</body>
+</html>

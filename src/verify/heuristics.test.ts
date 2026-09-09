@@ -121,3 +121,46 @@ describe('detectDurationAnomaly', () => {
     expect(f.map((x) => x.scene)).not.toContain('boot');
   });
 });
+
+describe('H004 does not cry wolf on short scenes', () => {
+  it('ignores a scene that is only slow relative to assertion-only ones', () => {
+    // Measured on a real cold-start demo: three scenes did no work at all
+    // (0s, assertions only), so the median was 0.4s and two scenes doing
+    // their JOB were flagged as possible hangs. An agent reading that
+    // report would chase two non-problems.
+    const findings = detectDurationAnomaly([
+      { id: 'boot', sec: 2.731 },
+      { id: 'open', sec: 0.802 },
+      { id: 'deploy', sec: 2.656 },
+      { id: 'logged', sec: 0 },
+      { id: 'proof', sec: 0 },
+    ]);
+    expect(findings).toEqual([]);
+  });
+
+  it('still catches a scene that is slow in absolute terms', () => {
+    const findings = detectDurationAnomaly([
+      { id: 'quick', sec: 2 },
+      { id: 'hung', sec: 45 },
+      { id: 'also-quick', sec: 2.5 },
+    ]);
+    expect(findings).toHaveLength(1);
+    expect(findings[0]!.scene).toBe('hung');
+  });
+
+  it('needs BOTH conditions, not either', () => {
+    // 100x the median but only 3s: not a hang, whatever the ratio says.
+    expect(detectDurationAnomaly([
+      { id: 'a', sec: 0.03 },
+      { id: 'b', sec: 3 },
+      { id: 'c', sec: 0.03 },
+    ])).toEqual([]);
+
+    // Slow in absolute terms but in line with its peers: also not a hang.
+    expect(detectDurationAnomaly([
+      { id: 'a', sec: 20 },
+      { id: 'b', sec: 22 },
+      { id: 'c', sec: 21 },
+    ])).toEqual([]);
+  });
+});
