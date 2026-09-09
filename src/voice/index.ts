@@ -18,7 +18,7 @@ export interface VoiceConfig {
  *
  * Captions can default on because they cost nothing; the default voice
  * engine is an optional dependency pulling roughly 300MB, so turning it
- * on by default would make `autodemo render` reach for the network on a
+ * on by default would make `castscript render` reach for the network on a
  * demo that never asked to speak (spec 7.1.3).
  */
 export function resolveVoice(script: DemoScript): VoiceConfig {

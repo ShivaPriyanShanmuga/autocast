@@ -23,7 +23,7 @@ const ROOT = resolve(__dirname, '..', '..');
 describe('the knowledge an agent is handed', () => {
   it('AGENTS.md names every command in the loop', () => {
     const text = readFileSync(join(ROOT, 'AGENTS.md'), 'utf8');
-    for (const command of ['autodemo init', 'autodemo validate', 'autodemo render', 'autodemo schema']) {
+    for (const command of ['castscript init', 'castscript validate', 'castscript render', 'castscript schema']) {
       expect(text).toContain(command);
     }
   });
@@ -38,9 +38,9 @@ describe('the knowledge an agent is handed', () => {
   it('neither AGENTS.md nor the skill restates the schema', () => {
     // Section 9 rejected MCP partly for adding "a duplicated schema to
     // keep in sync". A copy in a doc is the same mistake, cheaper.
-    for (const file of ['AGENTS.md', join('skills', 'autodemo', 'SKILL.md')]) {
+    for (const file of ['AGENTS.md', join('skills', 'castscript', 'SKILL.md')]) {
       const text = readFileSync(join(ROOT, file), 'utf8');
-      expect(text, file).toContain('autodemo schema');
+      expect(text, file).toContain('castscript schema');
       expect(text, file).not.toContain('"$schema"');
       expect(text, file).not.toContain('additionalProperties');
     }
@@ -51,19 +51,19 @@ describe('the knowledge an agent is handed', () => {
     // Windows checkout, and a test about CONTENT that fails on an
     // encoding difference is testing the wrong thing — this broke on
     // exactly that, on the platform it was written on.
-    const text = readFileSync(join(ROOT, 'skills', 'autodemo', 'SKILL.md'), 'utf8').replace(
+    const text = readFileSync(join(ROOT, 'skills', 'castscript', 'SKILL.md'), 'utf8').replace(
       /\r\n/g,
       '\n',
     );
     const front = /^---\n([\s\S]*?)\n---/.exec(text);
     expect(front).not.toBeNull();
-    expect(front![1]).toMatch(/^name:\s*autodemo$/m);
+    expect(front![1]).toMatch(/^name:\s*castscript$/m);
     expect(front![1]).toMatch(/^description:\s*Use when/m);
   });
 
   it('both stay small enough to be worth loading', () => {
     // Roughly 2k tokens between them, per the section 9 budget.
-    const total = ['AGENTS.md', join('skills', 'autodemo', 'SKILL.md')].reduce(
+    const total = ['AGENTS.md', join('skills', 'castscript', 'SKILL.md')].reduce(
       (n, f) => n + readFileSync(join(ROOT, f), 'utf8').length,
       0,
     );
@@ -72,15 +72,15 @@ describe('the knowledge an agent is handed', () => {
 
   it('ships a licence and a readme', () => {
     expect(existsSync(join(ROOT, 'LICENSE'))).toBe(true);
-    expect(readFileSync(join(ROOT, 'README.md'), 'utf8')).toMatch(/autodemo/);
+    expect(readFileSync(join(ROOT, 'README.md'), 'utf8')).toMatch(/castscript/);
   });
 });
 
 describe('phase 7 exit criterion', () => {
-  it('a repo that has never seen autodemo gets an mp4 from init to render', async () => {
+  it('a repo that has never seen castscript gets an mp4 from init to render', async () => {
     // The criterion executed rather than asserted by hand: nothing here
     // is explained to the caller, and no fixture is reused.
-    const dir = mkdtempSync(join(tmpdir(), 'autodemo-fresh-'));
+    const dir = mkdtempSync(join(tmpdir(), 'castscript-fresh-'));
     dirs.push(dir);
 
     const init = capture();
@@ -142,7 +142,7 @@ describe('what gets published', () => {
   });
 
   it('exposes the binary the docs tell people to run', () => {
-    expect(pkg.bin?.autodemo).toBeDefined();
+    expect(pkg.bin?.castscript).toBeDefined();
   });
 });
 

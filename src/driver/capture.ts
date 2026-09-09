@@ -74,7 +74,7 @@ export async function captureDemo(
   // never arrived before the next action fired and everything read as
   // rushed. Keep this at or above the cursor travel time.
   const settleMs = toMs(script.defaults?.settle, 750);
-  const framesRoot = opts.framesRoot ?? join('.autodemo', 'frames');
+  const framesRoot = opts.framesRoot ?? join('.castscript', 'frames');
 
   // Insertion order is declaration order; teardown reverses it (spec 4.6).
   const sessions: AnySession[] = [];

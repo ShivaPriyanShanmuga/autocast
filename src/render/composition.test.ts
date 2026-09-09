@@ -10,7 +10,7 @@ import {
 } from './composition.js';
 
 const script = {
-  autodemo: 1,
+  castscript: 1,
   output: { path: 'x.mp4', canvas: [1280, 720], fps: 30 },
   sessions: {
     api: { backend: 'terminal' },

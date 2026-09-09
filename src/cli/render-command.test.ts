@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { runCli, type CliIO } from './run.js';
 
-const dir = mkdtempSync(join(tmpdir(), 'autodemo-cli-render-'));
+const dir = mkdtempSync(join(tmpdir(), 'castscript-cli-render-'));
 afterAll(() =>
   rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }),
 );
@@ -16,7 +16,7 @@ function captureIO() {
   return { io, out: () => out.join('\n'), err: () => err.join('\n') };
 }
 
-describe('autodemo render', () => {
+describe('castscript render', () => {
   it('renders the terminal fixture to the requested path', async () => {
     const out = join(dir, 'cli.mp4');
     const c = captureIO();

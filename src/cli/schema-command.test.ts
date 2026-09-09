@@ -7,7 +7,7 @@ function captureIO() {
   return { io, out: () => out.join('\n') };
 }
 
-describe('autodemo schema', () => {
+describe('castscript schema', () => {
   it('prints valid JSON', async () => {
     const c = captureIO();
     const code = await runCli(['schema'], c.io);
@@ -21,7 +21,7 @@ describe('autodemo schema', () => {
     const schema = JSON.parse(c.out()) as Record<string, unknown>;
     const props = (schema.properties ?? {}) as Record<string, unknown>;
     expect(Object.keys(props)).toEqual(
-      expect.arrayContaining(['autodemo', 'output', 'sessions', 'scenes']),
+      expect.arrayContaining(['castscript', 'output', 'sessions', 'scenes']),
     );
   });
 });

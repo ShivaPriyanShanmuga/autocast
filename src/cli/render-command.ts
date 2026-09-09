@@ -11,12 +11,12 @@ export async function renderCommand(argv: string[], io: CliIO): Promise<number> 
   const outputPath = outIndex >= 0 ? argv[outIndex + 1] : undefined;
   // Skip the value that belongs to --out, but ONLY when --out is present:
   // with outIndex === -1, `outIndex + 1` is 0 and would swallow the
-  // filename in the common `autodemo render demo.yaml` form.
+  // filename in the common `castscript render demo.yaml` form.
   const outValueIndex = outIndex >= 0 ? outIndex + 1 : -1;
   const file = argv.find((a, i) => !a.startsWith('--') && i !== outValueIndex);
 
   if (file === undefined) {
-    io.err('autodemo render: expects a file\n\nUsage: autodemo render [--out <path>] <file>');
+    io.err('castscript render: expects a file\n\nUsage: castscript render [--out <path>] <file>');
     return 2;
   }
 
@@ -25,7 +25,7 @@ export async function renderCommand(argv: string[], io: CliIO): Promise<number> 
     text = readFileSync(file, 'utf8');
   } catch (error) {
     io.err(
-      `autodemo render: cannot read ${file}: ${
+      `castscript render: cannot read ${file}: ${
         error instanceof Error ? error.message : String(error)
       }`,
     );
@@ -46,7 +46,7 @@ export async function renderCommand(argv: string[], io: CliIO): Promise<number> 
     io.out(formatRenderReport(report));
     return report.ok ? 0 : 1;
   } catch (error) {
-    io.err(`autodemo render: ${error instanceof Error ? error.message : String(error)}`);
+    io.err(`castscript render: ${error instanceof Error ? error.message : String(error)}`);
     return 2;
   }
 }

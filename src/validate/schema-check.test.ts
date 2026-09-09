@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { parseSource } from './parse.js';
 import { checkSchema } from './schema-check.js';
 
-const VALID = `autodemo: 1
+const VALID = `castscript: 1
 output:
   path: docs/demo.mp4
 sessions:
@@ -45,8 +45,8 @@ describe('checkSchema', () => {
   });
 
   it('includes the failing path in the message', () => {
-    const bad = VALID.replace('autodemo: 1', 'autodemo: 2');
+    const bad = VALID.replace('castscript: 1', 'castscript: 2');
     const r = checkSchema(parseSource(bad));
-    expect(r.diagnostics[0]!.message).toContain('autodemo');
+    expect(r.diagnostics[0]!.message).toContain('castscript');
   });
 });

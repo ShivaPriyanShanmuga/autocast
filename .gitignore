@@ -1,6 +1,10 @@
 node_modules/
 dist/
 coverage/
-.autodemo/
+.castscript/
 *.tsbuildinfo
 *.report.json
+
+# Never commit a registry token. Nothing here needs a project-level
+# .npmrc; credentials belong in the user-level one.
+.npmrc

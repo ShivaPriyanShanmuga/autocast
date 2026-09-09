@@ -12,10 +12,10 @@ export interface CliIO {
 /** Kept in step with package.json by a test; there is no build step to sync them. */
 export const VERSION = '0.1.0';
 
-const USAGE = `autodemo ${VERSION} — agent-driven demo video recorder
+const USAGE = `castscript ${VERSION} — agent-driven demo video recorder
 
 Usage:
-  autodemo <command> [options]
+  castscript <command> [options]
 
 Commands:
   init              Scaffold a demo script for this project
@@ -41,7 +41,7 @@ export async function runCli(argv: string[], io: CliIO): Promise<number> {
 
   const command = argv[0];
   if (command === undefined) {
-    io.err('autodemo: no command given\n');
+    io.err('castscript: no command given\n');
     io.err(USAGE);
     return 2;
   }
@@ -66,7 +66,7 @@ export async function runCli(argv: string[], io: CliIO): Promise<number> {
     return renderCommand(argv.slice(1), io);
   }
 
-  io.err(`autodemo: unknown command "${command}"\n`);
+  io.err(`castscript: unknown command "${command}"\n`);
   io.err(USAGE);
   return 2;
 }

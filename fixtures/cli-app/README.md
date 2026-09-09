@@ -1,6 +1,6 @@
 # cli-app fixture
 
-A dependency-free CLI used by autodemo's tests. Never add npm dependencies
+A dependency-free CLI used by castscript's tests. Never add npm dependencies
 to it — tests must run with no install and no network.
 
 | Command | Exercises |

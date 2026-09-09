@@ -1,4 +1,4 @@
-# autodemo Phase 1a — Terminal capture — Implementation Plan
+# castscript Phase 1a — Terminal capture — Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -8,7 +8,7 @@
 
 **Tech Stack:** `node-pty` 1.1.0 (ConPTY on Windows, forkpty elsewhere), `@xterm/headless` 6.0.0. Existing: TypeScript 5.9, Node 20+, vitest 3.
 
-**Spec:** `docs/superpowers/specs/2026-09-04-autodemo-design.md` — especially §4.1, §4.2, §4.6, §6 and §6.1.
+**Spec:** `docs/superpowers/specs/2026-09-04-castscript-design.md` — especially §4.1, §4.2, §4.6, §6 and §6.1.
 
 ## Global Constraints
 
@@ -137,7 +137,7 @@ async function dash() {
   try {
     for (let tick = 0; tick < 8; tick++) {
       process.stdout.write('\x1b[2J\x1b[H'); // clear + home
-      process.stdout.write('┌─ autodemo dash ─┐\n');
+      process.stdout.write('┌─ castscript dash ─┐\n');
       process.stdout.write(`│ tick ${String(tick).padStart(2)}         │\n`);
       process.stdout.write(`│ cpu  ${String(30 + tick * 5).padStart(2)}%        │\n`);
       process.stdout.write('└─────────────────┘\n');
@@ -170,7 +170,7 @@ Create `fixtures/cli-app/README.md`:
 ```markdown
 # cli-app fixture
 
-A dependency-free CLI used by autodemo's tests. Never add npm dependencies
+A dependency-free CLI used by castscript's tests. Never add npm dependencies
 to it — tests must run with no install and no network.
 
 | Command | Exercises |
@@ -1188,7 +1188,7 @@ export async function executeStep(step: AnyStep, ctx: StepContext): Promise<Step
   }
 
   if (typeof step.run === 'string') {
-    const marker = `__autodemo_done_${Math.random().toString(36).slice(2, 8)}__`;
+    const marker = `__castscript_done_${Math.random().toString(36).slice(2, 8)}__`;
     const joiner = process.platform === 'win32' ? ' & ' : ' ; ';
     ctx.session.write(`${step.run}${joiner}echo ${marker}\r`);
     const matched = await ctx.session.waitFor(new RegExp(marker), DEFAULT_WAIT_MS);
@@ -1559,7 +1559,7 @@ This task handles terminal sessions only; a script containing a browser session 
 Create `fixtures/terminal/demo.yaml`:
 
 ```yaml
-autodemo: 1
+castscript: 1
 output:
   path: docs/terminal-demo.mp4
 
@@ -1578,12 +1578,12 @@ scenes:
     use: cli
     narrate: "First, a greeting."
     steps:
-      - type: "node fixtures/cli-app/cli.mjs greet autodemo"
+      - type: "node fixtures/cli-app/cli.mjs greet castscript"
       - key: Enter
       - wait_for:
           stdout: /ready/
     assert:
-      - stdout_contains: "hello autodemo"
+      - stdout_contains: "hello castscript"
 
   - id: build
     use: cli
@@ -1628,7 +1628,7 @@ describe('captureTerminalDemo', () => {
     expect(cast).toBeDefined();
     expect(cast!.width).toBe(90);
     expect(cast!.events.length).toBeGreaterThan(0);
-    expect(cast!.events.map((e) => e[2]).join('')).toContain('hello autodemo');
+    expect(cast!.events.map((e) => e[2]).join('')).toContain('hello castscript');
   }, 90000);
 
   it('shares one session across scenes rather than respawning', async () => {
@@ -1816,7 +1816,7 @@ git commit -m "feat: terminal capture driver with session lifecycle management"
 - `npx vitest run` — all green, and **no `AttachConsole failed` stack trace in the output**.
 - `npm run typecheck` and `npm run build` — clean.
 - `node dist/cli/index.js doctor` reports a `node-pty` row.
-- `captureTerminalDemo` drives `fixtures/terminal/demo.yaml` end to end: two scenes, one shared session, all assertions green, an asciicast containing `hello autodemo`.
+- `captureTerminalDemo` drives `fixtures/terminal/demo.yaml` end to end: two scenes, one shared session, all assertions green, an asciicast containing `hello castscript`.
 - A deliberately broken assertion produces `ok: false` with a useful `detail`, rather than throwing.
 - No orphaned `node.exe` processes after the suite.
 - Runtime dependencies: `yaml`, `zod`, `node-pty`, `@xterm/headless`. No canvas, no ffmpeg invocation.

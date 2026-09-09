@@ -8,7 +8,7 @@ function captureIO() {
   return { io, out: () => out.join('\n'), err: () => err.join('\n') };
 }
 
-describe('autodemo validate', () => {
+describe('castscript validate', () => {
   it('exits 0 on the flagship fixture', async () => {
     const c = captureIO();
     const code = await runCli(['validate', 'fixtures/mixed/demo.yaml'], c.io);

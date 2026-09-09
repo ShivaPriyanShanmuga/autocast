@@ -27,14 +27,14 @@ export function detectProject(dir: string): ProjectKind {
   return 'cli';
 }
 
-const SCHEMA_REF = '# yaml-language-server: $schema=./.autodemo/schema.json';
+const SCHEMA_REF = '# yaml-language-server: $schema=./.castscript/schema.json';
 
 function webScaffold(): string {
   return `${SCHEMA_REF}
-autodemo: 1
+castscript: 1
 
-# Edit this, then:  npx autodemo validate demo.yaml && npx autodemo render demo.yaml
-# The full schema:  npx autodemo schema
+# Edit this, then:  npx castscript validate demo.yaml && npx castscript render demo.yaml
+# The full schema:  npx castscript schema
 
 output:
   path: docs/demo.mp4
@@ -63,10 +63,10 @@ scenes:
 
 function cliScaffold(): string {
   return `${SCHEMA_REF}
-autodemo: 1
+castscript: 1
 
-# Edit this, then:  npx autodemo validate demo.yaml && npx autodemo render demo.yaml
-# The full schema:  npx autodemo schema
+# Edit this, then:  npx castscript validate demo.yaml && npx castscript render demo.yaml
+# The full schema:  npx castscript schema
 
 output:
   path: docs/demo.mp4
@@ -106,7 +106,7 @@ export async function initCommand(argv: string[], io: CliIO): Promise<number> {
   const scriptPath = join(dir, 'demo.yaml');
   if (existsSync(scriptPath) && !force) {
     io.err(
-      `autodemo init: ${scriptPath} already exists.\n` +
+      `castscript init: ${scriptPath} already exists.\n` +
         '  Re-run with --force to replace it, or edit the existing script.',
     );
     return 1;
@@ -115,10 +115,10 @@ export async function initCommand(argv: string[], io: CliIO): Promise<number> {
   const kind = detectProject(dir);
   writeFileSync(scriptPath, kind === 'web' ? webScaffold() : cliScaffold());
 
-  // The same schema `autodemo schema` prints, from the same call. Two
+  // The same schema `castscript schema` prints, from the same call. Two
   // copies that can drift is exactly the duplication section 9 rejected
   // MCP for; it would be no better for having been written to disk.
-  const schemaDir = join(dir, '.autodemo');
+  const schemaDir = join(dir, '.castscript');
   mkdirSync(schemaDir, { recursive: true });
   writeFileSync(
     join(schemaDir, 'schema.json'),
@@ -132,17 +132,17 @@ export async function initCommand(argv: string[], io: CliIO): Promise<number> {
 
   io.out(
     [
-      `autodemo init — scaffolded a ${kind} demo (${reason})`,
+      `castscript init — scaffolded a ${kind} demo (${reason})`,
       '',
       `  ${scriptPath}`,
       `  ${join(schemaDir, 'schema.json')}   (editor autocomplete)`,
       '',
       'Next:',
       '  1. Edit demo.yaml — the comments say what to replace.',
-      '  2. npx autodemo validate demo.yaml     (free, no capture)',
-      '  3. npx autodemo render demo.yaml       (records the video)',
+      '  2. npx castscript validate demo.yaml     (free, no capture)',
+      '  3. npx castscript render demo.yaml       (records the video)',
       '',
-      'If the guess was wrong, `npx autodemo schema` describes both backends.',
+      'If the guess was wrong, `npx castscript schema` describes both backends.',
     ].join('\n'),
   );
   return 0;

@@ -1,9 +1,9 @@
 ---
-name: autodemo
+name: castscript
 description: Use when the user wants a demo video, screen recording, or GIF of something they just built, or asks to "show" or "demo" a feature - records a real mp4 of a terminal and/or browser from a committed YAML script
 ---
 
-# Recording a demo video with autodemo
+# Recording a demo video with castscript
 
 Produces a real recorded mp4 of a terminal and/or a browser, from a YAML
 script that gets committed alongside the code.
@@ -11,9 +11,9 @@ script that gets committed alongside the code.
 ## The loop
 
 ```
-npx autodemo init                  # scaffold demo.yaml + local schema
-npx autodemo validate demo.yaml    # static check, no capture — free
-npx autodemo render demo.yaml      # records, encodes, prints a report
+npx castscript init                  # scaffold demo.yaml + local schema
+npx castscript validate demo.yaml    # static check, no capture — free
+npx castscript render demo.yaml      # records, encodes, prints a report
 ```
 
 `validate` executes nothing, so run it after every edit. `render` is the
@@ -33,11 +33,11 @@ Wanting to look at a frame means you want an assertion.
 
 ## Getting the schema
 
-Run `npx autodemo schema`. Do not reconstruct it from memory or from an
+Run `npx castscript schema`. Do not reconstruct it from memory or from an
 example — this file deliberately does not restate it, so the two cannot
 drift apart.
 
-`init` also writes `.autodemo/schema.json` and references it from the
+`init` also writes `.castscript/schema.json` and references it from the
 scaffold, so editors autocomplete.
 
 ## Shape
@@ -54,5 +54,5 @@ effect happened.
 
 ## Reference
 
-`AGENTS.md` in the autodemo repo carries the failure table and the
+`AGENTS.md` in the castscript repo carries the failure table and the
 assertion vocabulary.

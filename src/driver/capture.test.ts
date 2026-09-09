@@ -24,14 +24,14 @@ describe('captureTerminalDemo', () => {
     expect(cast!.width).toBe(90);
     expect(cast!.events.length).toBeGreaterThan(0);
 
-    // The cast holds the RAW PTY stream, so "hello autodemo" is not a
+    // The cast holds the RAW PTY stream, so "hello castscript" is not a
     // contiguous substring — it is emitted as
-    //   \x1b[32mhello\x1b[0m \x1b[1mautodemo\x1b[0m
+    //   \x1b[32mhello\x1b[0m \x1b[1mcastscript\x1b[0m
     // Turning that back into readable text is the renderer's job in
     // Phase 1b. Here we only prove real output was recorded.
     const raw = cast!.events.map((e) => e[2]).join('');
     expect(raw).toContain('hello');
-    expect(raw).toContain('autodemo');
+    expect(raw).toContain('castscript');
     expect(raw).toContain('build complete');
     expect(raw).toContain('\x1b['); // escapes preserved verbatim for replay
   }, 90000);
@@ -86,7 +86,7 @@ describe('captureDemo with a browser session', () => {
       expect(result.frames.web!.width).toBe(1280);
     } finally {
       const { rmSync } = await import('node:fs');
-      rmSync('.autodemo', { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+      rmSync('.castscript', { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
     }
   }, 180000);
 

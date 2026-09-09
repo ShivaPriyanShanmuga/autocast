@@ -55,7 +55,7 @@ describe('KokoroVoice', () => {
       const { join } = await import('node:path');
       const { probeAudio } = await import('./probe.js');
 
-      const dir = mkdtempSync(join(tmpdir(), 'autodemo-kokoro-'));
+      const dir = mkdtempSync(join(tmpdir(), 'castscript-kokoro-'));
       const v = new KokoroVoice();
       const out = join(dir, 'k.wav');
       const r = await v.synthesize(

@@ -12,7 +12,7 @@ const require = createRequire(import.meta.url);
  * resolves to a PROPORTIONAL face on Windows (M=10.00 but i=3.56), which
  * would shear every column out of alignment.
  */
-export const FONT_FAMILY = 'AutodemoMono';
+export const FONT_FAMILY = 'CastscriptMono';
 
 let registered = false;
 

@@ -1,4 +1,4 @@
-# autodemo Phase 5b — Animated and automatic zoom — Implementation Plan
+# castscript Phase 5b — Animated and automatic zoom — Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -8,7 +8,7 @@
 
 **Tech Stack:** No new dependencies.
 
-**Spec:** `docs/superpowers/specs/2026-09-04-autodemo-design.md` — especially §4.5, §5 and §7.2.
+**Spec:** `docs/superpowers/specs/2026-09-04-castscript-design.md` — especially §4.5, §5 and §7.2.
 
 ## A spec claim this plan corrects
 
@@ -253,7 +253,7 @@ const open: BrowserSession[] = [];
 const dirs: string[] = [];
 
 async function session() {
-  const dir = mkdtempSync(join(tmpdir(), 'autodemo-zoom-'));
+  const dir = mkdtempSync(join(tmpdir(), 'castscript-zoom-'));
   dirs.push(dir);
   const s = await openBrowserSession({ viewport: [640, 400], framesDir: join(dir, 'frames') });
   open.push(s);
