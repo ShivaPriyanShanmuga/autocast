@@ -22,7 +22,7 @@
     "node": ">=20"
   },
   "bin": {
-    "autodemo": "./dist/cli/index.js"
+    "autodemo": "dist/cli/index.js"
   },
   "files": [
     "dist",
