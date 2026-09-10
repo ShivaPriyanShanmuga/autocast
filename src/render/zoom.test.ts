@@ -136,3 +136,38 @@ describe('zoomScaleAt', () => {
     expect(peak).toBeLessThan(TARGET * 1.03);
   });
 });
+
+describe('the zoom lands without snapping', () => {
+  it('spring arrives at exactly 1, rather than being clamped to it', () => {
+    // The bug: the curve is a damped step response still settling at
+    // t=1, and `if (t >= 1) return 1` truncated the tail. It reached
+    // 1.0107 and was then yanked to 1.0 in a single frame.
+    expect(spring(0.9999)).toBeCloseTo(1, 4);
+    expect(Math.abs(spring(0.999) - spring(1))).toBeLessThan(0.001);
+  });
+
+  it('has no step at the moment the zoom stops moving', () => {
+    // 0.0075 of scale in one frame is small, but it is a discontinuity,
+    // and it lands exactly where the eye is already looking.
+    const target = 1.7;
+    const before = zoomScaleAt(ZOOM_IN_SEC - 1e-4, target);
+    const atHold = zoomScaleAt(ZOOM_IN_SEC, target);
+    expect(Math.abs(before - atHold)).toBeLessThan(0.001);
+  });
+
+  it('is continuous across every phase boundary, not just this one', () => {
+    const target = 1.7;
+    const boundaries = [0, ZOOM_IN_SEC, ZOOM_IN_SEC + ZOOM_HOLD_SEC, ZOOM_SEC];
+    for (const b of boundaries) {
+      const before = zoomScaleAt(b - 1e-4, target);
+      const after = zoomScaleAt(b + 1e-4, target);
+      expect(Math.abs(after - before), `discontinuity at t=${b}`).toBeLessThan(0.001);
+    }
+  });
+
+  it('still overshoots, so it has not become a plain ease', () => {
+    let peak = 0;
+    for (let t = 0; t <= ZOOM_IN_SEC; t += 0.005) peak = Math.max(peak, zoomScaleAt(t, 1.7));
+    expect(peak).toBeGreaterThan(1.7);
+  });
+});
