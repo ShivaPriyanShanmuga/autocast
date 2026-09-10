@@ -48,6 +48,7 @@ import { fitGeometry, FrameRenderer } from '../render/frame.js';
 import { frameCount, replayCast } from '../render/replay.js';
 import { DEFAULT_THEME } from '../render/theme.js';
 import { captureDemo } from './capture.js';
+import { checkOutputPath } from './output-path.js';
 import { nextStepFor } from '../cli/playbook.js';
 
 export interface RenderReport {
@@ -130,6 +131,11 @@ export async function renderDemo(
 
   const resolvedStyle = resolveStyle(script.style);
   const presenter = new Presenter(canvasW, canvasH, resolvedStyle);
+
+  // Before capture, not after. Capture is the expensive half, and until
+  // this ran first a demo could spend a minute recording and then die
+  // because its destination was a directory.
+  await checkOutputPath(outputPath);
 
   const capture = await captureDemo(script);
 
