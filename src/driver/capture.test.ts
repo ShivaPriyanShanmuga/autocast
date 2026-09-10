@@ -1,8 +1,9 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { parseSource } from '../validate/parse.js';
 import { checkSchema } from '../validate/schema-check.js';
-import { captureTerminalDemo } from './capture.js';
+import { captureTerminalDemo, captureDemo } from './capture.js';
 
 function load(path: string) {
   const { script, diagnostics } = checkSchema(parseSource(readFileSync(path, 'utf8')));
@@ -132,4 +133,28 @@ describe('abort on failure', () => {
     expect(result.ok).toBe(true);
     expect(result.abortedAt).toBeNull();
   }, 120000);
+});
+
+describe('frames left by an interrupted run', () => {
+  it('clears stale frames before capturing, rather than accumulating them', async () => {
+    // A render killed mid-capture never reaches its dispose, so its
+    // frames are stranded and nothing ever reclaims them. They are not
+    // reused either — the manifest is built in memory — so they are pure
+    // disk growth across every interrupted run.
+    const { mkdtempSync, writeFileSync, mkdirSync, existsSync, readdirSync } = await import(
+      'node:fs'
+    );
+    const { tmpdir } = await import('node:os');
+    const root = mkdtempSync(join(tmpdir(), 'castscript-stale-'));
+    const framesRoot = join(root, 'frames');
+    mkdirSync(join(framesRoot, 'ghost'), { recursive: true });
+    writeFileSync(join(framesRoot, 'ghost', '000000.jpg'), 'not a real frame');
+
+    await captureDemo(load('fixtures/terminal/demo.yaml'), { framesRoot });
+
+    expect(
+      existsSync(join(framesRoot, 'ghost')) && readdirSync(join(framesRoot, 'ghost')).length > 0,
+      'frames from a previous run survived',
+    ).toBe(false);
+  }, 120_000);
 });

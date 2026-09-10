@@ -1,3 +1,4 @@
+import { rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { DemoScript } from '../schema/demo.js';
 import { evaluateBrowserAssertion } from '../backends/browser/assertions.js';
@@ -75,6 +76,17 @@ export async function captureDemo(
   // rushed. Keep this at or above the cursor travel time.
   const settleMs = toMs(script.defaults?.settle, 750);
   const framesRoot = opts.framesRoot ?? join('.castscript', 'frames');
+
+  // Start from an empty frames directory.
+  //
+  // A render killed mid-capture never reaches its teardown, so its frames
+  // are stranded: nothing reclaims them, and nothing reads them either,
+  // since the manifest is built in memory. They are pure disk growth,
+  // once per interrupted run, forever. Clearing here is safe because a
+  // frame from a previous run is never useful to this one.
+  await rm(framesRoot, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }).catch(
+    () => undefined,
+  );
 
   // Insertion order is declaration order; teardown reverses it (spec 4.6).
   const sessions: AnySession[] = [];
