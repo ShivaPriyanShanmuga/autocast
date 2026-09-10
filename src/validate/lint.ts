@@ -108,6 +108,19 @@ export function lint(script: DemoScript, parsed: ParsedSource): Diagnostic[] {
       const key = soleKey(step as Record<string, unknown>);
       if (key === undefined) return;
 
+      for (const pattern of patternsIn(step)) {
+        if (mayBacktrack(pattern)) {
+          add(
+            'warning',
+            'L011',
+            `pattern ${pattern} nests one repetition inside another, which can backtrack ` +
+              'catastrophically — a single match blocks the event loop, so the render hangs ' +
+              'with no output and no timeout can fire',
+            ['scenes', i, 'steps', j, key],
+          );
+        }
+      }
+
       if (key === 'sleep') {
         add(
           'warning',
@@ -230,5 +243,44 @@ export function lint(script: DemoScript, parsed: ParsedSource): Diagnostic[] {
     }
   }
 
+  return out;
+}
+
+/**
+ * A repetition nested inside another repetition: `(a+)+`, `(x*)*`.
+ *
+ * These backtrack exponentially. Measured: `/^(a+)+$/` against 33
+ * characters never returns. That matters more here than in most places,
+ * because a single `re.test()` blocks the event loop — so the deadline
+ * inside `waitUntil` never gets a chance to fire, and the render hangs
+ * with no output rather than timing out with an error.
+ *
+ * A warning rather than an error: the shape is only a risk, and an author
+ * who knows their input is short is entitled to it.
+ */
+export function mayBacktrack(pattern: string): boolean {
+  if (!pattern.startsWith('/')) return false; // literal, escaped before use
+  const end = pattern.lastIndexOf('/');
+  if (end <= 0) return false;
+  const source = pattern.slice(1, end);
+  // A group whose body contains a quantifier, immediately followed by
+  // another quantifier. Deliberately simple: this is a warning about a
+  // shape, not a decision procedure, and a heuristic that anyone can
+  // read beats one that is right more often and understood by nobody.
+  return /\([^)]*[+*][^)]*\)\s*[+*]/.test(source);
+}
+
+/** Pattern-shaped strings inside a step or assertion object. */
+export function patternsIn(node: unknown): string[] {
+  const out: string[] = [];
+  const walk = (v: unknown): void => {
+    if (typeof v === 'string') {
+      if (v.startsWith('/')) out.push(v);
+      return;
+    }
+    if (Array.isArray(v)) return v.forEach(walk);
+    if (v && typeof v === 'object') return Object.values(v).forEach(walk);
+  };
+  walk(node);
   return out;
 }

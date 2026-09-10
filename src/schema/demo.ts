@@ -175,6 +175,19 @@ const Style = z
   })
   .strict();
 
+/**
+ * Canvas limits.
+ *
+ * Measured, not guessed: 20000x20000 allocates 1.6GB in one canvas, and
+ * a render holds several at once — compositor, presenter, output, one per
+ * session — with supersampled copies at the zoom factor on top. A typo
+ * with one extra zero therefore exhausts memory and dies with "Create
+ * skia surface failed", which tells an author nothing.
+ */
+export const MIN_CANVAS_DIM = 16;
+export const MAX_CANVAS_DIM = 7680;
+export const MAX_CANVAS_PIXELS = 3840 * 2160;
+
 export const DemoScript = z
   .object({
     castscript: z.literal(1),
@@ -183,6 +196,21 @@ export const DemoScript = z
         path: z.string().min(1),
         canvas: z
           .tuple([z.number().int().positive(), z.number().int().positive()])
+          .refine(
+            ([w, h]) =>
+              w >= MIN_CANVAS_DIM &&
+              h >= MIN_CANVAS_DIM &&
+              w <= MAX_CANVAS_DIM &&
+              h <= MAX_CANVAS_DIM &&
+              w * h <= MAX_CANVAS_PIXELS,
+            {
+              message:
+                `canvas must be between ${MIN_CANVAS_DIM}px and ${MAX_CANVAS_DIM}px per side ` +
+                `and at most ${MAX_CANVAS_PIXELS} pixels in total (3840x2160). A render builds ` +
+                'several canvases, plus supersampled copies at the zoom factor, so one extra ' +
+                'zero here exhausts memory rather than producing a large video.',
+            },
+          )
           .default([1280, 720]),
         fps: z.number().int().positive().default(30),
       })

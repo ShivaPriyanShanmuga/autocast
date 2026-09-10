@@ -265,3 +265,51 @@ scenes:
     expect(d.find((x) => x.code === 'L010')).toBeUndefined();
   });
 });
+
+describe('L011 patterns that can hang the render', () => {
+  const withPattern = (p: string) => `castscript: 1
+output:
+  path: docs/demo.mp4
+sessions:
+  api:
+    backend: terminal
+scenes:
+  - id: boot
+    use: api
+    steps:
+      - type: "echo hi"
+      - wait_for:
+          stdout: ${p}
+    assert:
+      - process_alive: true
+`;
+
+  it('warns about nested quantifiers', () => {
+    // Measured: /^(a+)+$/ against 33 characters never returns. A single
+    // re.test() blocks the event loop, so waitUntil's own deadline can
+    // never fire and the render hangs with no output at all.
+    const d = lintYaml(withPattern('"/^(a+)+$/"'));
+    const w = d.find((x) => x.code === 'L011');
+    expect(w).toBeDefined();
+    expect(w!.message).toMatch(/backtrack|hang/i);
+  });
+
+  it('catches the other nested shapes too', () => {
+    for (const p of ['"/(a*)*/"', '"/(ab+)+/"', '"/(x+)*y/"']) {
+      expect(lintYaml(withPattern(p)).find((x) => x.code === 'L011'), p).toBeDefined();
+    }
+  });
+
+  it('leaves ordinary patterns alone', () => {
+    // YAML single quotes, so backslashes reach the pattern untouched.
+    for (const p of [
+      "'/listening on :3000/'",
+      "'/POST \\/api\\/orders 201/'",
+      "'/(\\d+) items/'",
+      "'/(a|b)+/'",
+      "'plain text'",
+    ]) {
+      expect(lintYaml(withPattern(p)).find((x) => x.code === 'L011'), p).toBeUndefined();
+    }
+  });
+});

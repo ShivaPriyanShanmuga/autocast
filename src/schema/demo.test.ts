@@ -149,3 +149,42 @@ describe('voice block', () => {
     expect(DemoScript.safeParse({ ...base, voice: { enbaled: true } }).success).toBe(false);
   });
 });
+
+describe('canvas sanity', () => {
+  const withCanvas = (canvas: unknown) => ({
+    castscript: 1,
+    output: { path: 'a.mp4', canvas },
+    sessions: { api: { backend: 'terminal' } },
+    scenes: [{ id: 's', use: 'api' }],
+  });
+
+  it('accepts ordinary sizes', () => {
+    for (const c of [[1280, 720], [1920, 1080], [3840, 2160]]) {
+      expect(DemoScript.safeParse(withCanvas(c)).success, JSON.stringify(c)).toBe(true);
+    }
+  });
+
+  it('rejects a canvas that would exhaust memory', () => {
+    // Measured: 20000x20000 allocates 1.6GB, and a render builds several
+    // canvases plus supersampled copies at the zoom factor. A typo with
+    // one extra zero would OOM with no useful message.
+    for (const c of [[999999, 999999], [20000, 20000], [12800, 7200]]) {
+      const r = DemoScript.safeParse(withCanvas(c));
+      expect(r.success, JSON.stringify(c)).toBe(false);
+    }
+  });
+
+  it('rejects a canvas too small to render into', () => {
+    for (const c of [[1, 1], [8, 720]]) {
+      expect(DemoScript.safeParse(withCanvas(c)).success, JSON.stringify(c)).toBe(false);
+    }
+  });
+
+  it('explains itself when it rejects', () => {
+    const r = DemoScript.safeParse(withCanvas([20000, 20000]));
+    expect(r.success).toBe(false);
+    if (!r.success) {
+      expect(JSON.stringify(r.error.issues)).toMatch(/canvas|pixel|large/i);
+    }
+  });
+});
