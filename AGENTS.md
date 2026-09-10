@@ -51,6 +51,20 @@ Shape of a script:
   in scene four.
 - `scenes:` — ordered. Each `use:`s one session, may carry `steps:`,
   `assert:`, `narrate:` and `focus:`.
+
+**Narration.** `narrate:` is shown as a caption and, when `voice.enabled`
+is set, spoken. If a word is a heteronym the engine cannot disambiguate
+("live", "read", "record", "close"), add `speak:` with a respelling — the
+caption keeps the real spelling, the voice gets the respelling. `validate`
+warns (L010) when spoken narration contains one and `speak:` is absent.
+You are the only one who knows which sense was meant; the renderer never
+guesses, and the answer is committed so re-renders stay deterministic.
+
+```yaml
+narrate: "And there it is, live in about two seconds."
+speak:   "And there it is, lyve in about two seconds."
+```
+
 - `output:` — path, canvas, fps.
 - `style:` — optional presentation: background, window chrome, zoom.
 - `voice:` — optional narration. Off by default; needs `npm i -D kokoro-js`.

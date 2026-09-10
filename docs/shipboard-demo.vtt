@@ -1,16 +1,16 @@
 WEBVTT
 
-00:00:00.000 --> 00:00:03.700
+00:00:00.000 --> 00:00:03.900
 First we start the shipboard server.
 
-00:00:03.700 --> 00:00:08.700
+00:00:03.900 --> 00:00:09.475
 The deploy pipeline is idle, five stages waiting.
 
-00:00:08.700 --> 00:00:18.400
+00:00:09.475 --> 00:00:18.350
 One click ships it, and the stages go green in turn.
 
-00:00:18.400 --> 00:00:23.400
+00:00:18.350 --> 00:00:23.400
 The server logged every stage as it happened.
 
-00:00:23.400 --> 00:00:32.300
+00:00:23.400 --> 00:00:31.825
 And there it is, live in about two seconds.

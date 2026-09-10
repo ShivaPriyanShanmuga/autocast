@@ -136,3 +136,47 @@ export function detectDurationAnomaly(
   }
   return out;
 }
+
+export interface NarrationOutput {
+  /** Any scene has non-empty `narrate:` text. */
+  hasNarration: boolean;
+  captionsOn: boolean;
+  voiceEnabled: boolean;
+}
+
+/**
+ * Narration that will not be heard, and was not asked to be silent.
+ *
+ * Voice is opt-in for a good reason — the engine is a ~300MB optional
+ * dependency and `render` must not reach for the network on a demo that
+ * never asked to speak. The bug was never the default. It was that a
+ * render would reserve seconds of screen time per scene to fit narration
+ * (section 7.1.1's floor), ship no audio, and say nothing about either,
+ * so the same surprise kept recurring.
+ */
+export function detectSilentNarration(o: NarrationOutput): Finding[] {
+  if (!o.hasNarration || o.voiceEnabled) return [];
+
+  if (!o.captionsOn) {
+    return [
+      {
+        code: 'H006',
+        scene: '*',
+        detail:
+          'scenes have narrate: text but neither captions nor voice is on, so it is ' +
+          'not presented at all — remove style.captions: false, or set ' +
+          'voice: { enabled: true }',
+      },
+    ];
+  }
+
+  return [
+    {
+      code: 'H006',
+      scene: '*',
+      detail:
+        'narration is rendered as captions only — this video has no audio track. ' +
+        'For a voiceover: npm i -D kokoro-js, then voice: { enabled: true }',
+    },
+  ];
+}
