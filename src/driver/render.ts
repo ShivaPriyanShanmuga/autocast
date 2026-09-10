@@ -9,6 +9,7 @@ import { rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import {
   detectDurationAnomaly,
+  detectSilentNarration,
   scanBrowserText,
   scanTerminalText,
   type Finding,
@@ -97,11 +98,16 @@ export async function renderDemo(
   const speechRate = script.defaults?.speech_rate;
   const narrationTextByScene: Record<string, string> = {};
   const narrationByScene: Record<string, number> = {};
+  const spokenTextByScene: Record<string, string> = {};
   if (captionsOn) {
     for (const scene of script.scenes) {
       const text = scene.narrate?.trim();
       if (!text) continue;
       narrationTextByScene[scene.id] = text;
+      // What the VOICE says may differ from what the caption shows: a
+      // speech engine cannot tell "live" the adjective from "live" the
+      // verb, but the author can (spec 7.1.4).
+      spokenTextByScene[scene.id] = scene.speak?.trim() || text;
       narrationByScene[scene.id] = speechDurationSec(text, speechRate);
     }
   }
@@ -153,6 +159,15 @@ export async function renderDemo(
       if (!a.ok && a.detail) findings.push(...scanBrowserText(s2.id, a.detail));
     }
   }
+  // Say it before anything else: a silent video the author expected to
+  // speak is the single most repeated surprise this tool produced.
+  findings.push(
+    ...detectSilentNarration({
+      hasNarration: script.scenes.some((s2) => (s2.narrate ?? '').trim() !== ''),
+      captionsOn,
+      voiceEnabled: voice.enabled,
+    }),
+  );
   findings.push(
     ...detectDurationAnomaly(
       capture.scenes.map((s2) => ({ id: s2.id, sec: (s2.endedAt - s2.startedAt) / 1000 })),
@@ -237,7 +252,8 @@ export async function renderDemo(
     const cacheDir = join('.castscript', 'voice');
     const sceneSecById = new Map(sceneSecs.map((s2) => [s2.id, s2.sec]));
 
-    for (const [id, text] of Object.entries(narrationTextByScene)) {
+    for (const [id, captionText] of Object.entries(narrationTextByScene)) {
+      const text = spokenTextByScene[id] ?? captionText;
       // Lever 3 before the floor: absorb a small overrun by speaking a
       // little faster rather than by holding the picture (spec 7.1.3).
       //

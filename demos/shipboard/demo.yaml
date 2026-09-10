@@ -5,12 +5,20 @@
 #
 # Run from the repo root. Nothing needs starting first — the boot
 # scene starts the server itself, which is the point.
+#
+# This one speaks, so it needs the optional engine:  npm i -D kokoro-js
+# Without it the render fails loudly rather than quietly going silent.
 castscript: 1
 
 output:
   path: docs/shipboard-demo.mp4
   canvas: [1280, 720]
   fps: 30
+
+voice:
+  enabled: true
+  backend: kokoro
+  voice: af_heart
 
 defaults:
   typing_speed: 55ms
@@ -82,6 +90,9 @@ scenes:
   - id: proof
     use: api
     narrate: "And there it is, live in about two seconds."
+    # "live" here is the adjective, but a speech engine reads it as the
+    # verb — measured: /lˈɪv/. The caption keeps the real spelling.
+    speak: "And there it is, lyve in about two seconds."
     focus: /DEPLOY d-\w+ live in/
     assert:
       - stdout_matches: /live in \d/

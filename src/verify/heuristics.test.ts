@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
+  detectSilentNarration,
   scanTerminalText,
   scanBrowserText,
   detectBlankFrame,
@@ -162,5 +163,38 @@ describe('H004 does not cry wolf on short scenes', () => {
       { id: 'b', sec: 22 },
       { id: 'c', sec: 21 },
     ])).toEqual([]);
+  });
+});
+
+describe('narration that nobody will ever hear', () => {
+  it('says so when scenes narrate but voice is off', () => {
+    // The case that kept surprising people: a demo reserves seconds of
+    // screen time per scene to fit narration, ships no audio, and the
+    // report mentions neither.
+    const f = detectSilentNarration({ hasNarration: true, captionsOn: true, voiceEnabled: false });
+    expect(f).toHaveLength(1);
+    expect(f[0]!.code).toBe('H006');
+    expect(f[0]!.detail).toMatch(/caption/i);
+    expect(f[0]!.detail).toMatch(/voice/);
+  });
+
+  it('is quiet when voice is actually on', () => {
+    expect(
+      detectSilentNarration({ hasNarration: true, captionsOn: true, voiceEnabled: true }),
+    ).toEqual([]);
+  });
+
+  it('is quiet when there is nothing to narrate', () => {
+    expect(
+      detectSilentNarration({ hasNarration: false, captionsOn: true, voiceEnabled: false }),
+    ).toEqual([]);
+  });
+
+  it('is louder when narration is not presented AT ALL', () => {
+    // captions off and voice off means narrate: is dead text: it does
+    // not appear, is not spoken, and does not even affect timing.
+    const f = detectSilentNarration({ hasNarration: true, captionsOn: false, voiceEnabled: false });
+    expect(f).toHaveLength(1);
+    expect(f[0]!.detail).toMatch(/not presented|ignored|neither/i);
   });
 });

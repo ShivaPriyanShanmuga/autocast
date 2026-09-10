@@ -117,6 +117,13 @@ const SceneSchema = z
     id: z.string().min(1),
     use: z.string().min(1),
     narrate: z.string().optional(),
+    /**
+     * What the voice says, when that must differ from what the caption
+     * shows. For heteronyms the engine cannot disambiguate ("live",
+     * "read"), acronyms, version numbers and URLs. Captions always use
+     * `narrate:`.
+     */
+    speak: z.string().optional(),
     focus: z.string().optional(),
     layout: Layout.optional(),
     steps: z.array(Step).optional(),

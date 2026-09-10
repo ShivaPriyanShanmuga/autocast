@@ -46,6 +46,20 @@ scaffold, so editors autocomplete.
   still running in scene four. `backend: terminal` or `backend: browser`.
 - `scenes:` are ordered, each using one session, with `steps:`,
   `assert:`, `narrate:`, `focus:`.
+
+**Narration.** `narrate:` is shown as a caption and, when `voice.enabled`
+is set, spoken. If a word is a heteronym the engine cannot disambiguate
+("live", "read", "record", "close"), add `speak:` with a respelling — the
+caption keeps the real spelling, the voice gets the respelling. `validate`
+warns (L010) when spoken narration contains one and `speak:` is absent.
+You are the only one who knows which sense was meant; the renderer never
+guesses, and the answer is committed so re-renders stay deterministic.
+
+```yaml
+narrate: "And there it is, live in about two seconds."
+speak:   "And there it is, lyve in about two seconds."
+```
+
 - `style:` adds background, window chrome and zoom. `voice:` adds
   narration and is off by default.
 

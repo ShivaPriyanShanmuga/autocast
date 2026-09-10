@@ -203,3 +203,65 @@ describe('L008 caption overflow', () => {
     expect(d.loc.line).toBeGreaterThan(1);
   });
 });
+
+describe('L010 heteronyms in spoken narration', () => {
+  const withVoice = (narrate: string, extra = '') =>
+    `castscript: 1
+output:
+  path: docs/demo.mp4
+voice:
+  enabled: true
+sessions:
+  api:
+    backend: terminal
+scenes:
+  - id: boot
+    use: api
+    narrate: "${narrate}"
+${extra}`;
+
+  it('warns when narration contains a word the engine may mispronounce', () => {
+    // Measured, not guessed: espeak renders "live in about two seconds"
+    // as lˈɪv — the verb — which is what shipped in the demo.
+    const d = lintYaml(withVoice('And there it is, live in about two seconds.'));
+    const found = d.find((x) => x.code === 'L010');
+    expect(found).toBeDefined();
+    expect(found!.message).toMatch(/live/);
+    expect(found!.message).toMatch(/speak:/);
+  });
+
+  it('is satisfied by a speak: override', () => {
+    const d = lintYaml(
+      withVoice('And there it is, live in about two seconds.', '    speak: "And there it is, lyve in about two seconds."\n'),
+    );
+    expect(d.find((x) => x.code === 'L010')).toBeUndefined();
+  });
+
+  it('stays quiet when nothing is spoken', () => {
+    // Captions show the word as written, so there is no pronunciation to
+    // get wrong. Warning here would be noise on every silent demo.
+    const silent = `castscript: 1
+output:
+  path: docs/demo.mp4
+sessions:
+  api:
+    backend: terminal
+scenes:
+  - id: boot
+    use: api
+    narrate: "we go live in about two seconds"
+`;
+    expect(lintYaml(silent).find((x) => x.code === 'L010')).toBeUndefined();
+  });
+
+  it('does not fire on a word that merely contains a heteronym', () => {
+    // "delivery" contains "live"; "already" contains "read".
+    const d = lintYaml(withVoice('The delivery already completed.'));
+    expect(d.find((x) => x.code === 'L010')).toBeUndefined();
+  });
+
+  it('says nothing about ordinary narration', () => {
+    const d = lintYaml(withVoice('First we start the shipboard server.'));
+    expect(d.find((x) => x.code === 'L010')).toBeUndefined();
+  });
+});

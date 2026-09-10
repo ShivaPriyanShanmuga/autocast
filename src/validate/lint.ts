@@ -16,6 +16,24 @@ import { captionLineChars, wrapCaption, MAX_LINES } from '../render/caption.js';
  */
 export const NARRATION_WORD_CEILING = 120;
 
+/**
+ * English words a speech engine cannot disambiguate without meaning.
+ *
+ * Verified rather than assumed: espeak renders "live in about two
+ * seconds" as /lˈɪv/ — the verb — which is exactly what shipped in
+ * the shipboard demo. It gets "a live broadcast" right, so this is a
+ * warning and not an error; the author knows which one they meant.
+ *
+ * Not exhaustive, and deliberately limited to words that plausibly turn
+ * up in a software demo.
+ */
+export const HETERONYMS = [
+  'live', 'read', 'lead', 'close', 'wind', 'tear', 'row', 'bow',
+  'minute', 'object', 'present', 'record', 'produce', 'content',
+  'invalid', 'resume', 'separate', 'use', 'refuse', 'project',
+  'contract', 'permit', 'address', 'progress', 'convert', 'increment',
+];
+
 /** The single set key of a step or assertion object, if there is one. */
 function soleKey(entry: Record<string, unknown>): string | undefined {
   return Object.keys(entry).find((k) => entry[k] !== undefined);
@@ -173,6 +191,26 @@ export function lint(script: DemoScript, parsed: ParsedSource): Diagnostic[] {
       // Asked through the same functions the renderer uses, so the
       // warning predicts exactly what the caption will do rather than
       // approximating it.
+      // Only when something will actually SAY it. Captions show the word
+      // as written, so a silent demo has no pronunciation to get wrong
+      // and warning there would be noise.
+      if (script.voice?.enabled === true && scene.speak === undefined) {
+        const found = HETERONYMS.filter((w) =>
+          new RegExp(`\\b${w}\\b`, 'i').test(scene.narrate ?? ''),
+        );
+        if (found.length > 0) {
+          add(
+            'warning',
+            'L010',
+            `narration in scene "${scene.id}" contains ${found
+              .map((w) => `"${w}"`)
+              .join(', ')}, which a speech engine may pronounce the wrong way — ` +
+              'add speak: with a respelling if it does',
+            ['scenes', i, 'narrate'],
+          );
+        }
+      }
+
       const chars = captionLineChars(script.output?.canvas?.[0] ?? 1280);
       const lines = wrapCaption(scene.narrate, chars);
       if (lines.join('').endsWith('…')) {
