@@ -48,7 +48,7 @@ import { fitGeometry, FrameRenderer } from '../render/frame.js';
 import { frameCount, replayCast } from '../render/replay.js';
 import { DEFAULT_THEME } from '../render/theme.js';
 import { captureDemo } from './capture.js';
-import { checkOutputPath } from './output-path.js';
+import { checkOutputPath, runKey } from './output-path.js';
 import { nextStepFor } from '../cli/playbook.js';
 
 export interface RenderReport {
@@ -137,7 +137,14 @@ export async function renderDemo(
   // because its destination was a directory.
   await checkOutputPath(outputPath);
 
-  const capture = await captureDemo(script);
+  // Everything this render writes besides the video itself is namespaced
+  // by where the video goes, so two renders in one working directory
+  // cannot overwrite each other's intermediates.
+  const key = runKey(outputPath);
+
+  const capture = await captureDemo(script, {
+    framesRoot: join('.castscript', 'frames', key),
+  });
 
   const scenes = capture.scenes.map((s) => ({
     id: s.id,
@@ -226,7 +233,7 @@ export async function renderDemo(
         const shots = await sampleFailingScene(capture, script, failing, canvasW, canvasH);
         if (shots.length > 0) {
           contactSheetPath = await writeContactSheet(
-            join('.castscript', 'failed', `${failing.id}-contact.png`),
+            join('.castscript', 'failed', `${key}-${failing.id}-contact.png`),
             shots,
             { width: canvasW, height: canvasH },
           );
@@ -586,7 +593,7 @@ export async function renderDemo(
     let audioPath: string | undefined;
     const clips = planClips(plan, synthesized);
     if (clips.length > 0) {
-      audioPath = join('.castscript', 'voice', 'track.wav');
+      audioPath = join('.castscript', 'voice', `${key}-track.wav`);
       // The bed is deliberately LONGER than the picture.
       //
       // `-shortest` cuts every stream to the shortest one, so the audio

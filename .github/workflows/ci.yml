@@ -1,16 +1,57 @@
 name: ci
 
+# GitHub bills macOS at 10x and Windows at 2x, and this suite takes about
+# 14 minutes plus 5 of setup. The full three-OS matrix therefore cost 247
+# billed minutes PER PUSH — 190 of them macOS alone — which exhausts a
+# 2,000-minute monthly allowance in roughly eight pushes.
+#
+# So: Linux on every push, the other two on a schedule and on demand.
+# Cross-platform coverage is not optional here — it is what caught the
+# macOS spawn-helper bug and the Windows MAX_PATH one — but it does not
+# have to be paid for on every commit.
+
 on:
   push:
     branches: [main]
+    # Re-rendered videos and README edits cannot break the build, and
+    # several of them each triggered the full matrix to test nothing.
+    paths-ignore:
+      - 'docs/**'
+      - '**/*.md'
+      - 'LICENSE'
   pull_request:
+    paths-ignore:
+      - 'docs/**'
+      - '**/*.md'
+      - 'LICENSE'
+  schedule:
+    # Mondays, 06:00 UTC. Catches platform drift without pushing for it.
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+    inputs:
+      all_platforms:
+        description: 'Run Windows and macOS too'
+        type: boolean
+        default: true
+
+# A superseded push should stop burning minutes immediately.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   test:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        # Linux always. The expensive two only on a schedule or when
+        # asked for explicitly.
+        os: >-
+          ${{ fromJSON(
+            (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
+              && '["ubuntu-latest", "windows-latest", "macos-latest"]'
+              || '["ubuntu-latest"]'
+          ) }}
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -33,13 +74,23 @@ jobs:
 
       - run: npm ci
 
+      # Chromium is ~120MB and is re-downloaded on every run otherwise.
+      # Keyed on the Playwright version, because a bump needs a new build.
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.os == 'Linux' && '~/.cache/ms-playwright' || runner.os == 'macOS' && '~/Library/Caches/ms-playwright' || '~\AppData\Local\ms-playwright' }}
+          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+
       # --with-deps installs system libraries and is only supported on
-      # Ubuntu; on macOS and Windows it fails outright.
+      # Ubuntu; on macOS and Windows it fails outright. The system
+      # libraries are not in the cache, so that step runs regardless.
       - name: Install chromium (Linux)
         if: runner.os == 'Linux'
         run: npx playwright install --with-deps chromium
       - name: Install chromium
-        if: runner.os != 'Linux'
+        if: runner.os != 'Linux' && steps.playwright-cache.outputs.cache-hit != 'true'
         run: npx playwright install chromium
 
       # doctor first: a missing system dependency should fail with our

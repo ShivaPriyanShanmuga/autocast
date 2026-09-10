@@ -1,5 +1,6 @@
+import { createHash } from 'node:crypto';
 import { mkdir, stat } from 'node:fs/promises';
-import { dirname } from 'node:path';
+import { dirname, resolve } from 'node:path';
 
 /**
  * Refuse an unusable output path BEFORE capturing anything.
@@ -40,4 +41,22 @@ export async function checkOutputPath(outputPath: string): Promise<void> {
     // Not existing is the normal case, and the only one we ignore.
     if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
   }
+}
+
+/**
+ * A short, stable id for "this render", derived from where its video goes.
+ *
+ * Renders share a working directory, and several of the paths they write
+ * to were fixed: the frames root and the built audio track. Two renders
+ * at once therefore fought over them — one deleting the other's frames
+ * mid-capture, or overwriting its track so the wrong narration ended up
+ * in the wrong video, silently.
+ *
+ * Keyed on the OUTPUT path rather than a random id on purpose. Two runs
+ * producing the same video are the same run as far as intermediates go,
+ * so re-rendering still reclaims its own leftovers; two runs producing
+ * different videos never touch each other's.
+ */
+export function runKey(outputPath: string): string {
+  return createHash('sha256').update(resolve(outputPath)).digest('hex').slice(0, 12);
 }
