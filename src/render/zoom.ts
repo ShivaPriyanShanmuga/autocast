@@ -17,10 +17,31 @@ import { minimumJerk } from './cursor.js';
 const DECAY = 5;
 const FREQ = 3.75;
 
+/** The raw response. Zero value AND zero velocity at t=0. */
+function response(t: number): number {
+  return 1 - Math.exp(-DECAY * t) * (Math.cos(FREQ * t) + (DECAY / FREQ) * Math.sin(FREQ * t));
+}
+
+/**
+ * What the raw response has actually reached by t=1.
+ *
+ * A damped oscillator approaches its target asymptotically: at t=1 this
+ * one is still 1.07% away, mid-settle. The first version papered over
+ * that with `if (t >= 1) return 1`, which truncated the tail and put a
+ * one-frame discontinuity exactly where the zoom finishes — a 0.0075
+ * jump in scale at 1.7x, small but landing precisely where the eye is
+ * already looking, and read as a snap.
+ *
+ * Dividing by it makes the curve ARRIVE at 1 instead of being yanked
+ * there. Continuity by construction, so no retuning of DECAY or FREQ can
+ * reintroduce the seam.
+ */
+const SETTLE = response(1);
+
 export function spring(t: number): number {
   if (t <= 0) return 0;
   if (t >= 1) return 1;
-  return 1 - Math.exp(-DECAY * t) * (Math.cos(FREQ * t) + (DECAY / FREQ) * Math.sin(FREQ * t));
+  return response(t) / SETTLE;
 }
 
 export interface ZoomStep {

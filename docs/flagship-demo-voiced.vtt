@@ -1,13 +1,13 @@
 WEBVTT
 
-00:00:00.000 --> 00:00:04.778
+00:00:00.000 --> 00:00:04.738
 First we start the order API.
 
-00:00:04.778 --> 00:00:13.515
+00:00:04.738 --> 00:00:13.438
 A customer places an order for twenty-four units.
 
-00:00:13.515 --> 00:00:17.315
+00:00:13.438 --> 00:00:17.238
 And the server logged it.
 
-00:00:17.315 --> 00:00:25.465
+00:00:17.238 --> 00:00:25.388
 There it is, in the server's own log.
