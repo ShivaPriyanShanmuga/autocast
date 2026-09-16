@@ -10,7 +10,7 @@ export interface CliIO {
 }
 
 /** Kept in step with package.json by a test; there is no build step to sync them. */
-export const VERSION = '0.1.4';
+export const VERSION = '0.1.5';
 
 const USAGE = `castscript ${VERSION} — agent-driven demo video recorder
 
