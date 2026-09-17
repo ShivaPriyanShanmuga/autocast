@@ -65,6 +65,19 @@ narrate: "And there it is, live in about two seconds."
 speak:   "And there it is, lyve in about two seconds."
 ```
 
+**Pauses.** `||` in `narrate:` (or `speak:`) holds real silence there;
+`||1.5` sets the length in seconds. The caption never shows the marks.
+Use it where a beat belongs — after a result lands, before a punchline.
+Punctuation cannot do this: measured against the engine, a comma, a full
+stop, an ellipsis and no punctuation at all produce the same ~0.3s break,
+because the model imposes its own prosody. Where a pause belongs is a
+question about meaning, so it is yours to place, not the renderer's to
+infer.
+
+```yaml
+narrate: "One click ships it. || Then the stages go green."
+```
+
 - `output:` — path, canvas, fps.
 - `style:` — optional presentation: background, window chrome, zoom.
 - `voice:` — optional narration. Off by default; needs `npm i -D kokoro-js`.

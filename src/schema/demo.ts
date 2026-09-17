@@ -154,6 +154,12 @@ const Style = z
     zoom: z
       .object({
         auto: z.boolean().optional(),
+        /**
+         * While zoomed, let the camera follow the pointer instead of
+         * holding a fixed frame. Browser scenes only — a terminal has no
+         * pointer to follow.
+         */
+        follow: z.enum(['none', 'cursor']).optional(),
         on: z.enum(['click', 'focus']).optional(),
         /**
          * A number, or `fit` to compute it from the target's measured

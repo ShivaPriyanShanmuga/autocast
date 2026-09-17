@@ -167,6 +167,22 @@ export const MIN_FIT_SCALE = 1.2;
 export const MAX_FIT_SCALE = 3;
 
 /**
+ * How far the compositor supersamples, whatever the zoom reaches.
+ *
+ * Cost grows with the SQUARE of this: at 3 a 1280x720 demo composes onto
+ * 3840x2160 canvases, 33MB each and several live at once. That made a
+ * test suite which renders demos in parallel thrash — one case went from
+ * about 20 seconds to 870.
+ *
+ * 2 is the honest ceiling anyway. A browser scene's source is a
+ * viewport-sized screencast that cannot be supersampled at all (spec
+ * 7.1.3), so past 2 the extra surface pixels are interpolation rather
+ * than detail. A terminal is re-rasterised and would stay sharp higher,
+ * but not at 2.25x the memory for every demo.
+ */
+export const MAX_SUPERSAMPLE = 2;
+
+/**
  * How far to zoom so the target is actually readable.
  *
  * The agent chooses WHERE to look; it cannot choose how far, because the
