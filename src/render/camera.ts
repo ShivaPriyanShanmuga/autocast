@@ -143,3 +143,51 @@ export function zoomedCamera(
     height,
   };
 }
+
+/** What `scale:` meant before it could be computed. */
+export const DEFAULT_ZOOM_SCALE = 1.8;
+
+/**
+ * How much of the frame a focused target should occupy.
+ *
+ * 0.45 is not arbitrary: it is the value at which a terminal log line —
+ * the one target size the old fixed 1.7x actually suited — comes out at
+ * 1.69x. Anything else would shift every existing demo.
+ */
+const TARGET_FRACTION = 0.45;
+
+/**
+ * A zoom below this is not worth animating; above it, a viewport-sized
+ * browser capture is magnified past legibility. The upscale ceiling is
+ * real — a spike established that the screencast cannot be supersampled
+ * (spec 7.1.3) — so framing a 28px icon "properly" would mean showing a
+ * blur.
+ */
+export const MIN_FIT_SCALE = 1.2;
+export const MAX_FIT_SCALE = 3;
+
+/**
+ * How far to zoom so the target is actually readable.
+ *
+ * The agent chooses WHERE to look; it cannot choose how far, because the
+ * target's size in pixels is not known until capture measures it. A
+ * fixed scale suits exactly one target size and is wrong for every
+ * other: at 1.7x a status badge occupies 27% of the frame, a version
+ * number 9%, and a whole card 101% — the zoom goes straight past it.
+ *
+ * Both dimensions are considered and the smaller scale wins, so a tall
+ * target is never cropped to fit a wide frame.
+ */
+export function fitScale(
+  focus: Rect | null,
+  surface: { width: number; height: number },
+): number {
+  if (focus === null || focus.width <= 0 || focus.height <= 0) return DEFAULT_ZOOM_SCALE;
+
+  const byWidth = (TARGET_FRACTION * surface.width) / focus.width;
+  const byHeight = (TARGET_FRACTION * surface.height) / focus.height;
+  const wanted = Math.min(byWidth, byHeight);
+
+  if (!Number.isFinite(wanted)) return DEFAULT_ZOOM_SCALE;
+  return Math.max(MIN_FIT_SCALE, Math.min(MAX_FIT_SCALE, wanted));
+}

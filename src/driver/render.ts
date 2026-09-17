@@ -34,7 +34,10 @@ import { findInScreen } from '../render/find-in-screen.js';
 import {
   browserRectToPixels,
   cellRectToPixels,
+  fitScale,
   zoomedCamera,
+  DEFAULT_ZOOM_SCALE,
+  MAX_FIT_SCALE,
   type Rect,
 } from '../render/camera.js';
 import { LayoutCompositor } from '../render/layout.js';
@@ -377,7 +380,14 @@ export async function renderDemo(
       zoomedSessions.add(w.primary);
       if (w.inset) zoomedSessions.add(w.inset.session);
     }
-    const zoomTarget = script.style?.zoom?.scale ?? 1.8;
+    // `fit` computes the scale from the measured target; a number is
+    // taken literally. Either way it is resolved ONCE per window below —
+    // recomputing per frame would make the zoom breathe as a terminal's
+    // matched text shifts by a character.
+    const declaredScale = script.style?.zoom?.scale ?? 'fit';
+    const fitting = declaredScale === 'fit';
+    const zoomTarget = fitting ? MAX_FIT_SCALE : declaredScale;
+    const scaleByWindow = new Map<string, number>();
     const ss = zoomedSessions.size > 0 ? zoomTarget : 1;
     const bigW = Math.round(canvasW * ss);
     const bigH = Math.round(canvasH * ss);
@@ -520,17 +530,28 @@ export async function renderDemo(
     const totalFrames = Math.max(1, Math.ceil(plan.totalSec * fps));
 
     let previousWindowId: string | null = null;
+    // What the current window resolved its zoom to; see the frame loop.
+    let activeScale = zoomTarget;
 
     async function* composedFrames(): AsyncGenerator<Buffer> {
       for (let i = 0; i < totalFrames; i++) {
         const outSec = (i + 0.5) / fps;
-        const frame = planFrame(plan, outSec, previousWindowId, zoomTarget);
+        // `activeScale` is whatever the current window resolved to. The
+        // first frame of a window has not measured its target yet, but
+        // zoom is exactly 1 until zoomStartSec regardless of scale, so a
+        // provisional value there changes nothing on screen.
+        const frame = planFrame(plan, outSec, previousWindowId, activeScale);
         if (!frame) continue;
         const { window } = frame;
 
         // Snapshot BEFORE clearing: the output canvas still holds the
         // outgoing scene's last finished frame.
-        if (frame.cut) outCompositor.snapshot();
+        if (frame.cut) {
+          outCompositor.snapshot();
+          // A new scene resolves its own scale; inheriting the previous
+          // one would zoom the wrong amount for one frame.
+          activeScale = scaleByWindow.get(window.id) ?? zoomTarget;
+        }
         outCompositor.clear();
 
         // A zooming window composes at the supersampled size; every
@@ -568,9 +589,19 @@ export async function renderDemo(
             }
           : null;
 
+        // Resolve how far to zoom, once per window. A browser box is
+        // known from capture, but a terminal's match only exists after
+        // its frame is rendered — so this is the first point where the
+        // target's real size is available for either backend. Cached so
+        // the scale cannot breathe as matched text shifts a character.
+        if (fitting && mapped !== null && !scaleByWindow.has(window.id)) {
+          scaleByWindow.set(window.id, fitScale(mapped, size));
+          activeScale = scaleByWindow.get(window.id)!;
+        }
+
         outCompositor.drawFullscreen(
           pres.surface,
-          zoomedCamera(size, mapped, frame.zoom, zoomTarget),
+          zoomedCamera(size, mapped, frame.zoom, activeScale),
         );
 
         // After the camera, so the caption does not scale and crop with a

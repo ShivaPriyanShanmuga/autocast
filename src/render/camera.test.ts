@@ -4,6 +4,10 @@ import {
   cameraRect,
   cellRectToPixels,
   zoomedCamera,
+  fitScale,
+  DEFAULT_ZOOM_SCALE,
+  MIN_FIT_SCALE,
+  MAX_FIT_SCALE,
   type Rect,
 } from './camera.js';
 import type { ScreenState } from './screen.js';
@@ -223,5 +227,54 @@ describe('zoomedCamera', () => {
 
   it('is the whole surface when nothing is focused', () => {
     expect(zoomedCamera(surface, null, 1.4, TARGET).width).toBe(surface.width);
+  });
+});
+
+describe('fitScale', () => {
+  const SURFACE = { width: 2176, height: 1224 };
+  // A CSS pixel maps to 1.7 surface pixels at the flagship's settings.
+  const css = (w: number, h = 40) => ({ x: 0, y: 0, width: w * 1.7, height: h * 1.7 });
+
+  it('leaves a terminal log line where it already was', () => {
+    // The fixed 1.7x default happened to suit exactly one target size,
+    // which is why the flagship looked right and hid the problem. Fit
+    // must agree with it there, or every existing demo shifts.
+    expect(fitScale(css(340), SURFACE)).toBeCloseTo(1.69, 1);
+  });
+
+  it('zooms further for something small', () => {
+    // A status badge at 1.7x occupies 27% of the frame — legible, but
+    // not what "zoom in on the result" is asking for.
+    expect(fitScale(css(200), SURFACE)).toBeGreaterThan(2.5);
+  });
+
+  it('zooms less for something large, instead of overflowing it', () => {
+    // A whole card at 1.7x is 101% of the frame: the zoom goes PAST it.
+    expect(fitScale(css(760, 300), SURFACE)).toBeLessThan(1.7);
+  });
+
+  it('never telescopes on a tiny target', () => {
+    // 28px would demand ~20x, which magnifies a viewport-sized capture
+    // far past legibility.
+    expect(fitScale(css(28, 28), SURFACE)).toBeLessThanOrEqual(MAX_FIT_SCALE);
+  });
+
+  it('never zooms out below the full frame', () => {
+    expect(fitScale(css(5000, 3000), SURFACE)).toBeGreaterThanOrEqual(MIN_FIT_SCALE);
+  });
+
+  it('fits the constraining dimension, not just width', () => {
+    // A tall narrow target must not be cropped top and bottom.
+    const tall = { x: 0, y: 0, width: 100, height: 1000 };
+    const scale = fitScale(tall, SURFACE);
+    expect((tall.height * scale) / SURFACE.height).toBeLessThanOrEqual(1);
+  });
+
+  it('is stable — the same box always gives the same scale', () => {
+    expect(fitScale(css(340), SURFACE)).toBe(fitScale(css(340), SURFACE));
+  });
+
+  it('falls back to the fixed default when there is no target', () => {
+    expect(fitScale(null, SURFACE)).toBe(DEFAULT_ZOOM_SCALE);
   });
 });
