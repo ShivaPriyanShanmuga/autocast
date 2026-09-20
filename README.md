@@ -4,16 +4,13 @@ Agent-driven demo video recorder. A coding agent writes a YAML script,
 runs one command, and gets a **real recorded mp4** of a terminal and a
 browser — committed alongside the code, re-renderable in CI.
 
-[![A terminal starting a server, a browser deploying through it, and the terminal logging that deploy — one continuous take](docs/shipboard-demo.gif)](https://github.com/ShivaPriyanShanmuga/autocast/raw/main/docs/shipboard-demo.mp4)
+<video src="https://github.com/user-attachments/assets/17665f0a-1c66-46e1-bb25-34f522b9cb6f" controls muted playsinline width="100%"></video>
 
-*Nothing above is a stitched screenshot — it is a real recording, made by
-castscript from [`demos/shipboard/demo.yaml`](demos/shipboard/demo.yaml).
-A terminal starts a server, a browser deploys through it, and the terminal
-logs that same deploy, as one continuous take.*
-
-**[▶ Watch the full 32s recording, with narration and captions](https://github.com/ShivaPriyanShanmuga/autocast/raw/main/docs/shipboard-demo.mp4)**
-— the loop above is silent and trimmed. Re-record either with
-`castscript render demos/shipboard/demo.yaml`.
+*Not a stitched screenshot — a real recording, made by castscript from
+[`demos/shipboard/demo.yaml`](demos/shipboard/demo.yaml). A terminal starts
+a server, a browser deploys through it, and the terminal logs that same
+deploy, as one continuous take, with narration and captions. Re-record it
+with `castscript render demos/shipboard/demo.yaml`.*
 
 ## What makes it different
 
