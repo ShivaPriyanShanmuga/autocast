@@ -273,7 +273,10 @@ describe('failing runs produce no video', () => {
 
 describe('captions', () => {
   it('writes a vtt sidecar whose cues match the narrated scenes', async () => {
-    const script = loadFlagshipOnPort(34713);
+    // The terminal fixture, not the flagship: these test CAPTIONS, and a
+    // browser plus a web server plus a zoom made each case a ~170s
+    // render that sat right on its own timeout.
+    const script = load('fixtures/terminal/demo.yaml');
     const report = await renderDemo(script, { outputPath: join(dir, 'captioned.mp4') });
     expect(report.ok).toBe(true);
 
@@ -302,7 +305,7 @@ describe('captions', () => {
   it('draws in the caption band and nowhere near the top of the frame', async () => {
     // Verified by pixel band rather than by looking: section 3 forbids
     // frames reaching agent context, so the check is a number.
-    const on = loadFlagshipOnPort(34714);
+    const on = load('fixtures/terminal/demo.yaml');
     const off = { ...on, style: { ...on.style, captions: false } } as typeof on;
 
     const onPath = join(dir, 'cap-on.mp4');
@@ -321,7 +324,7 @@ describe('captions', () => {
   }, 300_000);
 
   it('does not write a sidecar when captions are off', async () => {
-    const base = loadFlagshipOnPort(34715);
+    const base = load('fixtures/terminal/demo.yaml');
     const script = { ...base, style: { ...base.style, captions: false } } as typeof base;
     const path = join(dir, 'nocap.mp4');
     await rm(vttPathFor(path), { force: true });

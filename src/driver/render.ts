@@ -26,15 +26,23 @@ import { speechDurationSec } from '../render/speech.js';
 import { buildVtt, cuesFromPlan } from '../render/vtt.js';
 import { resolveVoice, voiceBackendFor } from '../voice/index.js';
 import { synthesizeCached } from '../voice/cache.js';
+import { splitPauses, pauseTotalSec } from '../voice/pauses.js';
+import { joinWithPauses, type PausedClip } from '../voice/join.js';
 import { buildTrack, planClips } from '../voice/timeline.js';
 import { checkSync, stretchFor } from '../verify/sync.js';
 import type { SynthesisResult } from '../voice/backend.js';
 import { planFrame } from '../render/frame-plan.js';
 import { findInScreen } from '../render/find-in-screen.js';
+import { cursorAt } from '../render/cursor.js';
+import { CameraFollower } from '../render/follow.js';
 import {
   browserRectToPixels,
   cellRectToPixels,
+  fitScale,
   zoomedCamera,
+  DEFAULT_ZOOM_SCALE,
+  MAX_FIT_SCALE,
+  MAX_SUPERSAMPLE,
   type Rect,
 } from '../render/camera.js';
 import { LayoutCompositor } from '../render/layout.js';
@@ -104,12 +112,20 @@ export async function renderDemo(
     for (const scene of script.scenes) {
       const text = scene.narrate?.trim();
       if (!text) continue;
-      narrationTextByScene[scene.id] = text;
+      // The pause marks are an instruction to the voice, not words. The
+      // caption shows the sentence, not the notation.
+      const parts = splitPauses(scene.speak?.trim() || text);
+      narrationTextByScene[scene.id] = splitPauses(text)
+        .map((p) => p.text)
+        .join(' ');
       // What the VOICE says may differ from what the caption shows: a
       // speech engine cannot tell "live" the adjective from "live" the
       // verb, but the author can (spec 7.1.4).
       spokenTextByScene[scene.id] = scene.speak?.trim() || text;
-      narrationByScene[scene.id] = speechDurationSec(text, speechRate);
+      // The floor has to cover the silence too, or a scene cuts away
+      // during its own pause.
+      narrationByScene[scene.id] =
+        speechDurationSec(narrationTextByScene[scene.id]!, speechRate) + pauseTotalSec(parts);
     }
   }
   const narrates = Object.keys(narrationByScene).length > 0;
@@ -275,20 +291,27 @@ export async function renderDemo(
       // — the word-count estimate is only good to about 11%, which is the
       // size of the whole adjustment. Both passes are cached, so the cost
       // is paid once ever, not once per render.
-      const dry = await synthesizeCached(
-        backend,
-        { text, voice: voice.voice, rate: voice.rate },
-        cacheDir,
-      );
-      const stretch = stretchFor(dry.durationSec, sceneSecById.get(id) ?? 0);
-      const result =
-        stretch === 1
-          ? dry
-          : await synthesizeCached(
+      const parts = splitPauses(text);
+      const speak = async (rate: number): Promise<SynthesisResult> => {
+        const clips: PausedClip[] = [];
+        for (const part of parts) {
+          clips.push({
+            audio: await synthesizeCached(
               backend,
-              { text, voice: voice.voice, rate: voice.rate * stretch },
+              { text: part.text, voice: voice.voice, rate },
               cacheDir,
-            );
+            ),
+            pauseAfterSec: part.pauseAfterSec,
+          });
+        }
+        // Keyed on the joined content so two scenes sharing narration
+        // share the spliced file too.
+        return joinWithPauses(clips, join(cacheDir, `${runKey(id + text + rate)}.joined.wav`));
+      };
+
+      const dry = await speak(voice.rate);
+      const stretch = stretchFor(dry.durationSec, sceneSecById.get(id) ?? 0);
+      const result = stretch === 1 ? dry : await speak(voice.rate * stretch);
       synthesized[id] = result;
       // The MEASURED duration replaces the estimate. This is the whole
       // point of 6a taking a duration rather than a text.
@@ -377,8 +400,19 @@ export async function renderDemo(
       zoomedSessions.add(w.primary);
       if (w.inset) zoomedSessions.add(w.inset.session);
     }
-    const zoomTarget = script.style?.zoom?.scale ?? 1.8;
-    const ss = zoomedSessions.size > 0 ? zoomTarget : 1;
+    // `fit` computes the scale from the measured target; a number is
+    // taken literally. Either way it is resolved ONCE per window below —
+    // recomputing per frame would make the zoom breathe as a terminal's
+    // matched text shifts by a character.
+    // Following is browser-only: a terminal has no pointer.
+    const following = (script.style?.zoom?.follow ?? 'none') === 'cursor';
+    const declaredScale = script.style?.zoom?.scale ?? 'fit';
+    const fitting = declaredScale === 'fit';
+    const zoomTarget = fitting ? MAX_FIT_SCALE : declaredScale;
+    const scaleByWindow = new Map<string, number>();
+    // Capped: the surface only has to carry enough pixels to stay sharp,
+    // and cost grows with its square.
+    const ss = zoomedSessions.size > 0 ? Math.min(zoomTarget, MAX_SUPERSAMPLE) : 1;
     const bigW = Math.round(canvasW * ss);
     const bigH = Math.round(canvasH * ss);
 
@@ -507,30 +541,64 @@ export async function renderDemo(
       );
 
       if (focus?.kind !== 'browser') return { surface: browser.surface, focus: null };
+
+      const surfaceSize = { width: browser.surface.width, height: browser.surface.height };
+      const box = browserRectToPixels(
+        surfaceSize,
+        { width: manifest.width, height: manifest.height },
+        focus.box,
+      );
+
+      // Following the pointer means the focus MOVES: the camera tracks
+      // the cursor instead of holding the element it zoomed to. The box
+      // still sets how far to zoom — a pointer has no size of its own,
+      // so there would otherwise be nothing to derive a scale from.
+      if (!following) return { surface: browser.surface, focus: box };
+
+      const cursor = cursorAt([...(browserPointers.get(sessionId) ?? [])], tSec);
+      if (!cursor) return { surface: browser.surface, focus: box };
+
+      const fit = browser.pageFit;
       return {
         surface: browser.surface,
-        focus: browserRectToPixels(
-          { width: browser.surface.width, height: browser.surface.height },
-          { width: manifest.width, height: manifest.height },
-          focus.box,
-        ),
+        focus: {
+          x: fit.offsetX + cursor.at.x * fit.scale - box.width / 2,
+          y: fit.offsetY + cursor.at.y * fit.scale - box.height / 2,
+          width: box.width,
+          height: box.height,
+        },
       };
     };
 
     const totalFrames = Math.max(1, Math.ceil(plan.totalSec * fps));
 
     let previousWindowId: string | null = null;
+    // What the current window resolved its zoom to; see the frame loop.
+    let activeScale = zoomTarget;
+    // Damps the focus when following a pointer. Rebuilt per window, so a
+    // cut never drags the camera across from the previous scene.
+    let follower: CameraFollower | null = null;
 
     async function* composedFrames(): AsyncGenerator<Buffer> {
       for (let i = 0; i < totalFrames; i++) {
         const outSec = (i + 0.5) / fps;
-        const frame = planFrame(plan, outSec, previousWindowId, zoomTarget);
+        // `activeScale` is whatever the current window resolved to. The
+        // first frame of a window has not measured its target yet, but
+        // zoom is exactly 1 until zoomStartSec regardless of scale, so a
+        // provisional value there changes nothing on screen.
+        const frame = planFrame(plan, outSec, previousWindowId, activeScale);
         if (!frame) continue;
         const { window } = frame;
 
         // Snapshot BEFORE clearing: the output canvas still holds the
         // outgoing scene's last finished frame.
-        if (frame.cut) outCompositor.snapshot();
+        if (frame.cut) {
+          outCompositor.snapshot();
+          follower = null;
+          // A new scene resolves its own scale; inheriting the previous
+          // one would zoom the wrong amount for one frame.
+          activeScale = scaleByWindow.get(window.id) ?? zoomTarget;
+        }
         outCompositor.clear();
 
         // A zooming window composes at the supersampled size; every
@@ -559,7 +627,7 @@ export async function renderDemo(
         // The focus was measured on the source surface; the presenter
         // insets that surface by the padding, so carry it across.
         const content = pres.contentRect();
-        const mapped = primary.focus
+        let mapped = primary.focus
           ? {
               x: content.x + (primary.focus.x / size.width) * content.width,
               y: content.y + (primary.focus.y / size.height) * content.height,
@@ -568,9 +636,33 @@ export async function renderDemo(
             }
           : null;
 
+        // A raw cursor path would shake the frame, so the focus is
+        // damped before the camera ever sees it.
+        if (following && mapped !== null) {
+          const centre = { x: mapped.x + mapped.width / 2, y: mapped.y + mapped.height / 2 };
+          follower ??= new CameraFollower(centre, size);
+          const at = follower.update(centre, 1 / fps);
+          mapped = {
+            x: at.x - mapped.width / 2,
+            y: at.y - mapped.height / 2,
+            width: mapped.width,
+            height: mapped.height,
+          };
+        }
+
+        // Resolve how far to zoom, once per window. A browser box is
+        // known from capture, but a terminal's match only exists after
+        // its frame is rendered — so this is the first point where the
+        // target's real size is available for either backend. Cached so
+        // the scale cannot breathe as matched text shifts a character.
+        if (fitting && mapped !== null && !scaleByWindow.has(window.id)) {
+          scaleByWindow.set(window.id, fitScale(mapped, size));
+          activeScale = scaleByWindow.get(window.id)!;
+        }
+
         outCompositor.drawFullscreen(
           pres.surface,
-          zoomedCamera(size, mapped, frame.zoom, zoomTarget),
+          zoomedCamera(size, mapped, frame.zoom, activeScale),
         );
 
         // After the camera, so the caption does not scale and crop with a

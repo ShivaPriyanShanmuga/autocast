@@ -143,3 +143,67 @@ export function zoomedCamera(
     height,
   };
 }
+
+/** What `scale:` meant before it could be computed. */
+export const DEFAULT_ZOOM_SCALE = 1.8;
+
+/**
+ * How much of the frame a focused target should occupy.
+ *
+ * 0.45 is not arbitrary: it is the value at which a terminal log line —
+ * the one target size the old fixed 1.7x actually suited — comes out at
+ * 1.69x. Anything else would shift every existing demo.
+ */
+const TARGET_FRACTION = 0.45;
+
+/**
+ * A zoom below this is not worth animating; above it, a viewport-sized
+ * browser capture is magnified past legibility. The upscale ceiling is
+ * real — a spike established that the screencast cannot be supersampled
+ * (spec 7.1.3) — so framing a 28px icon "properly" would mean showing a
+ * blur.
+ */
+export const MIN_FIT_SCALE = 1.2;
+export const MAX_FIT_SCALE = 3;
+
+/**
+ * How far the compositor supersamples, whatever the zoom reaches.
+ *
+ * Cost grows with the SQUARE of this: at 3 a 1280x720 demo composes onto
+ * 3840x2160 canvases, 33MB each and several live at once. That made a
+ * test suite which renders demos in parallel thrash — one case went from
+ * about 20 seconds to 870.
+ *
+ * 2 is the honest ceiling anyway. A browser scene's source is a
+ * viewport-sized screencast that cannot be supersampled at all (spec
+ * 7.1.3), so past 2 the extra surface pixels are interpolation rather
+ * than detail. A terminal is re-rasterised and would stay sharp higher,
+ * but not at 2.25x the memory for every demo.
+ */
+export const MAX_SUPERSAMPLE = 2;
+
+/**
+ * How far to zoom so the target is actually readable.
+ *
+ * The agent chooses WHERE to look; it cannot choose how far, because the
+ * target's size in pixels is not known until capture measures it. A
+ * fixed scale suits exactly one target size and is wrong for every
+ * other: at 1.7x a status badge occupies 27% of the frame, a version
+ * number 9%, and a whole card 101% — the zoom goes straight past it.
+ *
+ * Both dimensions are considered and the smaller scale wins, so a tall
+ * target is never cropped to fit a wide frame.
+ */
+export function fitScale(
+  focus: Rect | null,
+  surface: { width: number; height: number },
+): number {
+  if (focus === null || focus.width <= 0 || focus.height <= 0) return DEFAULT_ZOOM_SCALE;
+
+  const byWidth = (TARGET_FRACTION * surface.width) / focus.width;
+  const byHeight = (TARGET_FRACTION * surface.height) / focus.height;
+  const wanted = Math.min(byWidth, byHeight);
+
+  if (!Number.isFinite(wanted)) return DEFAULT_ZOOM_SCALE;
+  return Math.max(MIN_FIT_SCALE, Math.min(MAX_FIT_SCALE, wanted));
+}
