@@ -12,9 +12,8 @@ A terminal starts a server, a browser deploys through it, and the terminal
 logs that same deploy, as one continuous take.*
 
 **[▶ Watch the full 32s recording, with narration and captions](https://github.com/ShivaPriyanShanmuga/autocast/raw/main/docs/shipboard-demo.mp4)**
-— the clip above is silent and trimmed, because GitHub only plays a video
-inline for files uploaded to its own CDN, not for one committed to a repo.
-Re-record either with `castscript render demos/shipboard/demo.yaml`.
+— the loop above is silent and trimmed. Re-record either with
+`castscript render demos/shipboard/demo.yaml`.
 
 ## What makes it different
 
