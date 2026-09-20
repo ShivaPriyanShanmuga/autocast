@@ -4,12 +4,17 @@ Agent-driven demo video recorder. A coding agent writes a YAML script,
 runs one command, and gets a **real recorded mp4** of a terminal and a
 browser — committed alongside the code, re-renderable in CI.
 
-https://github.com/ShivaPriyanShanmuga/autocast/raw/main/docs/shipboard-demo.mp4
+[![A terminal starting a server, a browser deploying through it, and the terminal logging that deploy — one continuous take](docs/shipboard-demo.gif)](https://github.com/ShivaPriyanShanmuga/autocast/raw/main/docs/shipboard-demo.mp4)
 
-*Recorded by castscript from [`demos/shipboard/demo.yaml`](demos/shipboard/demo.yaml) —
-a terminal starting a server, a browser deploying through it, and the
-terminal's own log of that deploy, as one continuous take. Re-record it
-with `castscript render demos/shipboard/demo.yaml`.*
+*Nothing above is a stitched screenshot — it is a real recording, made by
+castscript from [`demos/shipboard/demo.yaml`](demos/shipboard/demo.yaml).
+A terminal starts a server, a browser deploys through it, and the terminal
+logs that same deploy, as one continuous take.*
+
+**[▶ Watch the full 32s recording, with narration and captions](https://github.com/ShivaPriyanShanmuga/autocast/raw/main/docs/shipboard-demo.mp4)**
+— the clip above is silent and trimmed, because GitHub only plays a video
+inline for files uploaded to its own CDN, not for one committed to a repo.
+Re-record either with `castscript render demos/shipboard/demo.yaml`.
 
 ## What makes it different
 
@@ -155,6 +160,17 @@ castscript render   demos/shipboard/demo.yaml
 Nothing needs starting first. The demo's own first scene boots the
 server, which is the point: one script drives the terminal and the
 browser together.
+
+Other recordings in [`docs/`](docs/), all produced by the fixtures in
+this repo:
+
+| Recording | Shows |
+|---|---|
+| [shipboard-demo.mp4](docs/shipboard-demo.mp4) | Terminal + browser + narration, the demo above |
+| [flagship-demo-voiced.mp4](docs/flagship-demo-voiced.mp4) | Voice narration, captions, terminal and browser zoom |
+| [flagship-demo.mp4](docs/flagship-demo.mp4) | The same demo silent, captions only |
+| [browser-demo.mp4](docs/browser-demo.mp4) | Browser alone, with a `focus:` zoom |
+| [terminal-demo.mp4](docs/terminal-demo.mp4) | Terminal alone, including a progress bar redrawing in place |
 
 ## Status
 
